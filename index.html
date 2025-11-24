@@ -219,6 +219,7 @@
     let lastFrameTime = 0;
     const TARGET_FPS = 60;
     const FRAME_TIME = 1000 / TARGET_FPS;
+    const FRAME_TIME_TOLERANCE = 0.9; // Allow 90% of frame time to account for timing variance
 
     // Keyboard state for multi-key support
     const keysPressed = {
@@ -328,10 +329,13 @@
         fadeOut() {
             if(!this.isInit) return;
             const now = this.ctx.currentTime;
+            const currentValue = this.rotorGain.gain.value;
             this.rotorGain.gain.cancelScheduledValues(now);
-            this.rotorGain.gain.setValueAtTime(this.rotorGain.gain.value, now);
-            // Faster 0.5 second fade for game over
-            this.rotorGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            // Ensure we have a non-zero starting value for exponential ramp
+            const startValue = Math.max(currentValue, 0.01);
+            this.rotorGain.gain.setValueAtTime(startValue, now);
+            // Faster 0.5 second fade for game over using linear ramp for safety
+            this.rotorGain.gain.linearRampToValueAtTime(0.001, now + 0.5);
             this.rotorGain.gain.linearRampToValueAtTime(0, now + 0.6);
         },
 
@@ -445,23 +449,42 @@
         ctx.shadowBlur = 0; // Reset shadow
     }
 
+    // Track if mouse/touch is currently active
+    let pointerDown = false;
+    function isPointerActive() {
+        return pointerDown;
+    }
 
-    // --- INPUT HANDLER ---
-    function inputStart(e) {
-        // Prevent default for touch to avoid scrolling/zooming
+    // --- INPUT HANDLER (Combined pointer and keyboard support) ---
+    // Unified function to update inputActive state based on all input sources
+    function updateInputState() {
+        if(state !== 'PLAYING') return;
+        
+        const shouldBeActive = pointerDown || keysPressed.up;
+        
+        if(shouldBeActive && !inputActive) {
+            inputActive = true;
+            Sfx.throttle(true);
+        } else if(!shouldBeActive && inputActive) {
+            inputActive = false;
+            Sfx.throttle(false);
+        }
+    }
+
+    // Pointer (mouse/touch) handlers
+    function pointerStart(e) {
         if(e.type === 'touchstart') {
             e.preventDefault();
         }
-        // Skip if clicking UI buttons
         if(e.target.tagName === 'BUTTON') return;
         if(state !== 'PLAYING') return;
-        inputActive = true;
-        Sfx.throttle(true);
+        pointerDown = true;
+        updateInputState();
     }
-    function inputEnd(e) {
+    function pointerEnd(e) {
+        pointerDown = false;
         if(state !== 'PLAYING') return;
-        inputActive = false;
-        Sfx.throttle(false);
+        updateInputState();
     }
 
     // Prevent touch events from triggering default browser actions during gameplay
@@ -471,10 +494,10 @@
         }
     }, {passive: false});
     
-    window.addEventListener('mousedown', inputStart);
-    window.addEventListener('touchstart', inputStart, {passive: false});
-    window.addEventListener('mouseup', inputEnd);
-    window.addEventListener('touchend', inputEnd);
+    window.addEventListener('mousedown', pointerStart);
+    window.addEventListener('touchstart', pointerStart, {passive: false});
+    window.addEventListener('mouseup', pointerEnd);
+    window.addEventListener('touchend', pointerEnd);
 
     // --- KEYBOARD CONTROLS ---
     function handleKeyDown(e) {
@@ -513,7 +536,7 @@
             e.preventDefault();
             if(state === 'PLAYING') {
                 keysPressed.up = true;
-                updateKeyboardInput();
+                updateInputState();
             }
             return;
         }
@@ -533,7 +556,7 @@
 
         if(key === 'w' || key === 'arrowup') {
             keysPressed.up = false;
-            updateKeyboardInput();
+            updateInputState();
             return;
         }
 
@@ -543,63 +566,8 @@
         }
     }
 
-    function updateKeyboardInput() {
-        if(state !== 'PLAYING') return;
-        
-        // Only activate thrust if up is pressed
-        if(keysPressed.up && !keysPressed.down) {
-            if(!inputActive) {
-                inputActive = true;
-                Sfx.throttle(true);
-            }
-        } else {
-            if(inputActive && !isPointerActive()) {
-                inputActive = false;
-                Sfx.throttle(false);
-            }
-        }
-    }
-
-    // Track if mouse/touch is currently active
-    let pointerDown = false;
-    function isPointerActive() {
-        return pointerDown;
-    }
-
-    // Updated pointer handlers to track state
-    function pointerStart(e) {
-        if(e.type === 'touchstart') {
-            e.preventDefault();
-        }
-        if(e.target.tagName === 'BUTTON') return;
-        if(state !== 'PLAYING') return;
-        pointerDown = true;
-        inputActive = true;
-        Sfx.throttle(true);
-    }
-    function pointerEnd(e) {
-        pointerDown = false;
-        if(state !== 'PLAYING') return;
-        // Only deactivate if keyboard up is not pressed
-        if(!keysPressed.up) {
-            inputActive = false;
-            Sfx.throttle(false);
-        }
-    }
-
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    
-    // Replace old mouse/touch handlers with new pointer handlers
-    window.removeEventListener('mousedown', inputStart);
-    window.removeEventListener('touchstart', inputStart);
-    window.removeEventListener('mouseup', inputEnd);
-    window.removeEventListener('touchend', inputEnd);
-    
-    window.addEventListener('mousedown', pointerStart);
-    window.addEventListener('touchstart', pointerStart, {passive: false});
-    window.addEventListener('mouseup', pointerEnd);
-    window.addEventListener('touchend', pointerEnd);
 
     // --- PAUSE FUNCTIONS ---
     function pauseGame() {
@@ -896,7 +864,7 @@
         const deltaTime = currentTime - lastFrameTime;
         
         // Only update if enough time has passed (for consistent 60 FPS)
-        if (deltaTime >= FRAME_TIME * 0.9) { // Allow small variance
+        if (deltaTime >= FRAME_TIME * FRAME_TIME_TOLERANCE) {
             lastFrameTime = currentTime;
             
             if(state === 'PLAYING') update();
