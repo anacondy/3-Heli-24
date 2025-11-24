@@ -151,6 +151,7 @@
     <div id="ui-layer">
         <div class="hud-row">
             <span>ALT: <span id="val-alt">0000</span></span>
+            <span id="mute-indicator" style="display: none; color: var(--alert);">🔇 MUTED</span>
             <span>DIST: <span id="val-dist">0000</span></span>
         </div>
         <div class="hud-row">
@@ -164,7 +165,9 @@
         <h1 id="menu-title">VECTOR<br>CHOPPER</h1>
         <p id="menu-desc">
             ATMOSPHERE: UNSTABLE<br>
-            HOLD TO FLY • RELEASE TO FALL
+            TAP/CLICK OR W/↑ TO FLY<br>
+            S/↓ TO DIVE • P/SPACE TO PAUSE<br>
+            M TO MUTE • ENTER TO START
         </p>
         <button class="btn" id="btn-start">ENGAGE ROTORS</button>
     </div>
@@ -202,15 +205,26 @@
     const elAlt = document.getElementById('val-alt');
     const elDist = document.getElementById('val-dist');
     const elSys = document.getElementById('val-sys');
+    const elMute = document.getElementById('mute-indicator');
 
     // --- GAME STATE ---
     let width, height;
-    let state = 'MENU'; // 'MENU', 'PLAYING', 'CRASHED'
+    let state = 'MENU'; // 'MENU', 'PLAYING', 'PAUSED', 'CRASHED'
     let inputActive = false;
     let distance = 0;
     let speed = 0;
     let shake = 0;
     let canRestart = true;
+    let isMuted = false;
+    let lastFrameTime = 0;
+    const TARGET_FPS = 60;
+    const FRAME_TIME = 1000 / TARGET_FPS;
+
+    // Keyboard state for multi-key support
+    const keysPressed = {
+        up: false,
+        down: false
+    };
 
     // --- ENTITIES ---
     const heli = { x: 0, y: 0, dy: 0, angle: 0, r: 14 };
@@ -287,24 +301,50 @@
             
             // Cancel any fade outs
             this.rotorGain.gain.cancelScheduledValues(this.ctx.currentTime);
-            // Ramp up
+            // Ramp up only if not muted
             this.rotorGain.gain.setValueAtTime(0, this.ctx.currentTime);
-            this.rotorGain.gain.linearRampToValueAtTime(0.2, this.ctx.currentTime + 1.0);
+            if (!isMuted) {
+                this.rotorGain.gain.linearRampToValueAtTime(0.2, this.ctx.currentTime + 1.0);
+            }
         },
 
-        // New Fade Out Logic
+        // Mute/Unmute toggle
+        setMuted(muted) {
+            isMuted = muted;
+            elMute.style.display = muted ? 'inline' : 'none';
+            if(!this.isInit) return;
+            const now = this.ctx.currentTime;
+            this.rotorGain.gain.cancelScheduledValues(now);
+            if(muted) {
+                this.rotorGain.gain.setValueAtTime(this.rotorGain.gain.value, now);
+                this.rotorGain.gain.linearRampToValueAtTime(0, now + 0.1);
+            } else if(state === 'PLAYING') {
+                this.rotorGain.gain.setValueAtTime(0, now);
+                this.rotorGain.gain.linearRampToValueAtTime(0.2, now + 0.3);
+            }
+        },
+
+        // New Fade Out Logic - Immediately stop sound on crash
         fadeOut() {
             if(!this.isInit) return;
             const now = this.ctx.currentTime;
             this.rotorGain.gain.cancelScheduledValues(now);
             this.rotorGain.gain.setValueAtTime(this.rotorGain.gain.value, now);
-            // 2 Second Fade
-            this.rotorGain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
-            this.rotorGain.gain.linearRampToValueAtTime(0, now + 2.1);
+            // Faster 0.5 second fade for game over
+            this.rotorGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            this.rotorGain.gain.linearRampToValueAtTime(0, now + 0.6);
+        },
+
+        // Complete stop - for immediate sound cutoff
+        stopRotor() {
+            if(!this.isInit) return;
+            const now = this.ctx.currentTime;
+            this.rotorGain.gain.cancelScheduledValues(now);
+            this.rotorGain.gain.setValueAtTime(0, now);
         },
 
         throttle(on) {
-            if(!this.isInit) return;
+            if(!this.isInit || isMuted) return;
             const t = this.ctx.currentTime;
             if(on) {
                 this.lfo.frequency.setTargetAtTime(13, t, 0.2); 
@@ -316,7 +356,7 @@
         },
 
         playExplosion() {
-            if(!this.isInit) return;
+            if(!this.isInit || isMuted) return;
             const osc = this.ctx.createOscillator();
             const g = this.ctx.createGain();
             osc.type = 'sawtooth';
@@ -331,7 +371,7 @@
         },
         
         playBirdHit() {
-            if(!this.isInit) return;
+            if(!this.isInit || isMuted) return;
             const osc = this.ctx.createOscillator();
             const g = this.ctx.createGain();
             osc.type = 'triangle';
@@ -408,20 +448,183 @@
 
     // --- INPUT HANDLER ---
     function inputStart(e) {
+        // Prevent default for touch to avoid scrolling/zooming
+        if(e.type === 'touchstart') {
+            e.preventDefault();
+        }
+        // Skip if clicking UI buttons
         if(e.target.tagName === 'BUTTON') return;
         if(state !== 'PLAYING') return;
         inputActive = true;
         Sfx.throttle(true);
     }
     function inputEnd(e) {
+        if(state !== 'PLAYING') return;
         inputActive = false;
         Sfx.throttle(false);
     }
+
+    // Prevent touch events from triggering default browser actions during gameplay
+    document.getElementById('game-container').addEventListener('touchstart', (e) => {
+        if(state === 'PLAYING') {
+            e.preventDefault();
+        }
+    }, {passive: false});
     
     window.addEventListener('mousedown', inputStart);
     window.addEventListener('touchstart', inputStart, {passive: false});
     window.addEventListener('mouseup', inputEnd);
     window.addEventListener('touchend', inputEnd);
+
+    // --- KEYBOARD CONTROLS ---
+    function handleKeyDown(e) {
+        const key = e.key.toLowerCase();
+        
+        // Start game with Enter from menu
+        if((key === 'enter') && state === 'MENU' && canRestart) {
+            e.preventDefault();
+            resetGame();
+            return;
+        }
+
+        // Pause/Resume with P or Space
+        if(key === 'p' || key === ' ') {
+            e.preventDefault();
+            if(state === 'PLAYING') {
+                pauseGame();
+            } else if(state === 'PAUSED') {
+                resumeGame();
+            } else if(state === 'MENU' && key === ' ') {
+                // Space can also start from menu
+                if(canRestart) resetGame();
+            }
+            return;
+        }
+
+        // Mute with M
+        if(key === 'm') {
+            e.preventDefault();
+            Sfx.setMuted(!isMuted);
+            return;
+        }
+
+        // Up controls: W, ArrowUp
+        if(key === 'w' || key === 'arrowup') {
+            e.preventDefault();
+            if(state === 'PLAYING') {
+                keysPressed.up = true;
+                updateKeyboardInput();
+            }
+            return;
+        }
+
+        // Down controls: S, ArrowDown
+        if(key === 's' || key === 'arrowdown') {
+            e.preventDefault();
+            if(state === 'PLAYING') {
+                keysPressed.down = true;
+            }
+            return;
+        }
+    }
+
+    function handleKeyUp(e) {
+        const key = e.key.toLowerCase();
+
+        if(key === 'w' || key === 'arrowup') {
+            keysPressed.up = false;
+            updateKeyboardInput();
+            return;
+        }
+
+        if(key === 's' || key === 'arrowdown') {
+            keysPressed.down = false;
+            return;
+        }
+    }
+
+    function updateKeyboardInput() {
+        if(state !== 'PLAYING') return;
+        
+        // Only activate thrust if up is pressed
+        if(keysPressed.up && !keysPressed.down) {
+            if(!inputActive) {
+                inputActive = true;
+                Sfx.throttle(true);
+            }
+        } else {
+            if(inputActive && !isPointerActive()) {
+                inputActive = false;
+                Sfx.throttle(false);
+            }
+        }
+    }
+
+    // Track if mouse/touch is currently active
+    let pointerDown = false;
+    function isPointerActive() {
+        return pointerDown;
+    }
+
+    // Updated pointer handlers to track state
+    function pointerStart(e) {
+        if(e.type === 'touchstart') {
+            e.preventDefault();
+        }
+        if(e.target.tagName === 'BUTTON') return;
+        if(state !== 'PLAYING') return;
+        pointerDown = true;
+        inputActive = true;
+        Sfx.throttle(true);
+    }
+    function pointerEnd(e) {
+        pointerDown = false;
+        if(state !== 'PLAYING') return;
+        // Only deactivate if keyboard up is not pressed
+        if(!keysPressed.up) {
+            inputActive = false;
+            Sfx.throttle(false);
+        }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    // Replace old mouse/touch handlers with new pointer handlers
+    window.removeEventListener('mousedown', inputStart);
+    window.removeEventListener('touchstart', inputStart);
+    window.removeEventListener('mouseup', inputEnd);
+    window.removeEventListener('touchend', inputEnd);
+    
+    window.addEventListener('mousedown', pointerStart);
+    window.addEventListener('touchstart', pointerStart, {passive: false});
+    window.addEventListener('mouseup', pointerEnd);
+    window.addEventListener('touchend', pointerEnd);
+
+    // --- PAUSE FUNCTIONS ---
+    function pauseGame() {
+        if(state !== 'PLAYING') return;
+        state = 'PAUSED';
+        inputActive = false;
+        Sfx.throttle(false);
+        
+        // Show pause menu
+        title.innerText = "PAUSED";
+        title.style.color = "var(--dust)";
+        desc.innerHTML = "PRESS P OR SPACE TO RESUME<br>M TO TOGGLE SOUND";
+        btnStart.innerText = "RESUME";
+        menu.classList.remove('hidden');
+        
+        elSys.innerText = "PAUSED";
+    }
+
+    function resumeGame() {
+        if(state !== 'PAUSED') return;
+        state = 'PLAYING';
+        menu.classList.add('hidden');
+        elSys.innerText = "ONLINE";
+        elSys.style.color = "var(--primary)";
+    }
 
 
     // --- GAME LOGIC ---
@@ -441,6 +644,12 @@
         particles = [];
         terrain = [];
         birds = [];
+        
+        // Reset input states
+        inputActive = false;
+        pointerDown = false;
+        keysPressed.up = false;
+        keysPressed.down = false;
 
         elSys.innerText = "ONLINE";
         elSys.style.color = "var(--primary)";
@@ -478,7 +687,7 @@
         distance += speed;
         speed += CFG.speedInc;
 
-        // 1. Physics (Revised Floaty Logic)
+        // 1. Physics (Revised Floaty Logic with keyboard support)
         if(inputActive) {
             heli.dy -= CFG.thrust; // Lift
             heli.angle = -0.25;
@@ -491,8 +700,12 @@
                     life: 1, color: '#39ff14'
                 });
             }
+        } else if(keysPressed.down) {
+            // Accelerate downward when holding down/S
+            heli.dy += CFG.gravity * 2.5; // Fall faster
+            heli.angle = 0.3;
         } else {
-            heli.dy += CFG.gravity; // Gravity
+            heli.dy += CFG.gravity; // Normal Gravity
             heli.angle = 0.15;
         }
 
@@ -552,8 +765,12 @@
         state = 'CRASHED';
         shake = 20;
         inputActive = false;
+        pointerDown = false;
+        keysPressed.up = false;
+        keysPressed.down = false;
 
-        Sfx.fadeOut(); // FADE OUT instead of cutting
+        // Immediately fade out rotor sound
+        Sfx.fadeOut();
         Sfx.playExplosion();
         if(isBird) Sfx.playBirdHit();
 
@@ -561,9 +778,12 @@
         elSys.style.color = "var(--alert)";
 
         setTimeout(() => {
+            // Ensure sound is completely stopped after crash animation
+            Sfx.stopRotor();
+            
             title.innerText = "MISSION FAILED";
             title.style.color = "var(--alert)";
-            desc.innerHTML = `DISTANCE: ${Math.floor(distance/10)}<br>CAUSE: ${isBird ? "BIOLOGICAL ENTITY" : "TERRAIN IMPACT"}`;
+            desc.innerHTML = `DISTANCE: ${Math.floor(distance/10)}<br>CAUSE: ${isBird ? "BIOLOGICAL ENTITY" : "TERRAIN IMPACT"}<br><br>PRESS ENTER OR CLICK TO RESTART`;
             btnStart.innerText = "REBOOT SYSTEM";
             menu.classList.remove('hidden');
             
@@ -581,13 +801,23 @@
         ctx.fillStyle = '#050505';
         ctx.fillRect(0, 0, width, height);
 
-        // --- MENU MODE DRAWING ---
-        if(state === 'MENU') {
+        // --- MENU/PAUSED MODE DRAWING ---
+        if(state === 'MENU' || state === 'PAUSED') {
             drawDust();
-            return; // Don't draw game world in menu
+            if(state === 'PAUSED') {
+                // Still draw the game world faded in background when paused
+                ctx.globalAlpha = 0.3;
+                drawGameWorld();
+                ctx.globalAlpha = 1;
+            }
+            return;
         }
 
         // --- GAME MODE DRAWING ---
+        drawGameWorld();
+    }
+
+    function drawGameWorld() {
         ctx.save();
         if(shake > 0) {
             ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
@@ -618,7 +848,8 @@
             ctx.lineTo(b.x + b.w, b.y);
             ctx.stroke();
         });
-      // Particles
+        
+        // Particles
         particles.forEach(p => {
             ctx.fillStyle = p.color;
             ctx.globalAlpha = p.life;
@@ -658,10 +889,20 @@
         ctx.restore();
     }
 
-    // --- MAIN LOOP ---
-    function loop() {
-        if(state === 'PLAYING') update();
-        draw();
+    // --- MAIN LOOP (Optimized for 60 FPS) ---
+    function loop(currentTime) {
+        // Calculate delta time for smooth animation
+        if (!lastFrameTime) lastFrameTime = currentTime;
+        const deltaTime = currentTime - lastFrameTime;
+        
+        // Only update if enough time has passed (for consistent 60 FPS)
+        if (deltaTime >= FRAME_TIME * 0.9) { // Allow small variance
+            lastFrameTime = currentTime;
+            
+            if(state === 'PLAYING') update();
+            draw();
+        }
+        
         requestAnimationFrame(loop);
     }
 
@@ -671,7 +912,11 @@
     loop();
 
     btnStart.addEventListener('click', () => {
-        resetGame();
+        if(state === 'PAUSED') {
+            resumeGame();
+        } else {
+            resetGame();
+        }
     });
 
 </script>
