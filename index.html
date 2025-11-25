@@ -141,6 +141,75 @@
             opacity: 0;
             pointer-events: none !important;
         }
+
+        /* --- MUTE/UNMUTE FEEDBACK ANIMATION --- */
+        #mute-feedback {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2.5rem;
+            font-weight: bold;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 150;
+            text-shadow: 0 0 20px currentColor;
+            letter-spacing: 4px;
+        }
+
+        /* Dramatic animation for MUTED (red) */
+        @keyframes muteFeedback {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            15% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.3);
+            }
+            30% {
+                transform: translate(-50%, -50%) scale(1.0);
+            }
+            45% {
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+            60% {
+                transform: translate(-50%, -50%) scale(1.0);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+        }
+
+        /* Smooth animation for UNMUTED (green) */
+        @keyframes unmuteFeedback {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.05);
+            }
+            40% {
+                transform: translate(-50%, -50%) scale(1.0);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1.0);
+            }
+        }
+
+        .mute-feedback-muted {
+            color: var(--alert);
+            animation: muteFeedback 2s ease-out forwards;
+        }
+
+        .mute-feedback-unmuted {
+            color: var(--primary);
+            animation: unmuteFeedback 1.2s ease-out forwards;
+        }
     </style>
 </head>
 <body>
@@ -165,12 +234,14 @@
         <h1 id="menu-title">VECTOR<br>CHOPPER</h1>
         <p id="menu-desc">
             ATMOSPHERE: UNSTABLE<br>
-            TAP/CLICK OR W/↑ TO FLY<br>
-            S/↓ TO DIVE • P/SPACE TO PAUSE<br>
-            M TO MUTE • ENTER TO START
+            TAP/CLICK OR W/↑/SPACE TO FLY<br>
+            S/↓ TO DIVE • P/ENTER TO PAUSE<br>
+            M TO MUTE
         </p>
         <button class="btn" id="btn-start">ENGAGE ROTORS</button>
     </div>
+
+    <div id="mute-feedback"></div>
 </div>
 
 <script>
@@ -206,6 +277,7 @@
     const elDist = document.getElementById('val-dist');
     const elSys = document.getElementById('val-sys');
     const elMute = document.getElementById('mute-indicator');
+    const elMuteFeedback = document.getElementById('mute-feedback');
 
     // --- GAME STATE ---
     let width, height;
@@ -313,12 +385,21 @@
         setMuted(muted) {
             isMuted = muted;
             elMute.style.display = muted ? 'inline' : 'none';
+            
+            // Show visual feedback with animation
+            elMuteFeedback.textContent = muted ? '🔇 MUTED' : '🔊 UNMUTED';
+            elMuteFeedback.className = muted ? 'mute-feedback-muted' : 'mute-feedback-unmuted';
+            
+            // Reset animation by forcing reflow
+            void elMuteFeedback.offsetWidth;
+            elMuteFeedback.className = muted ? 'mute-feedback-muted' : 'mute-feedback-unmuted';
+            
             if(!this.isInit) return;
             const now = this.ctx.currentTime;
             this.rotorGain.gain.cancelScheduledValues(now);
             if(muted) {
-                this.rotorGain.gain.setValueAtTime(this.rotorGain.gain.value, now);
-                this.rotorGain.gain.linearRampToValueAtTime(0, now + 0.1);
+                // Immediately mute all sound
+                this.rotorGain.gain.setValueAtTime(0, now);
             } else if(state === 'PLAYING') {
                 this.rotorGain.gain.setValueAtTime(0, now);
                 this.rotorGain.gain.linearRampToValueAtTime(0.2, now + 0.3);
@@ -503,23 +584,26 @@
     function handleKeyDown(e) {
         const key = e.key.toLowerCase();
         
-        // Start game with Enter from menu
-        if((key === 'enter') && state === 'MENU' && canRestart) {
+        // Start game with Enter from menu, or pause/resume during gameplay
+        if(key === 'enter') {
             e.preventDefault();
-            resetGame();
+            if(state === 'MENU' && canRestart) {
+                resetGame();
+            } else if(state === 'PLAYING') {
+                pauseGame();
+            } else if(state === 'PAUSED') {
+                resumeGame();
+            }
             return;
         }
 
-        // Pause/Resume with P or Space
-        if(key === 'p' || key === ' ') {
+        // Pause/Resume with P only
+        if(key === 'p') {
             e.preventDefault();
             if(state === 'PLAYING') {
                 pauseGame();
             } else if(state === 'PAUSED') {
                 resumeGame();
-            } else if(state === 'MENU' && key === ' ') {
-                // Space can also start from menu
-                if(canRestart) resetGame();
             }
             return;
         }
@@ -531,12 +615,15 @@
             return;
         }
 
-        // Up controls: W, ArrowUp
-        if(key === 'w' || key === 'arrowup') {
+        // Up controls: W, ArrowUp, Space (Space now moves helicopter up)
+        if(key === 'w' || key === 'arrowup' || key === ' ') {
             e.preventDefault();
             if(state === 'PLAYING') {
                 keysPressed.up = true;
                 updateInputState();
+            } else if(state === 'MENU' && key === ' ' && canRestart) {
+                // Space can also start from menu
+                resetGame();
             }
             return;
         }
@@ -554,7 +641,8 @@
     function handleKeyUp(e) {
         const key = e.key.toLowerCase();
 
-        if(key === 'w' || key === 'arrowup') {
+        // Space also needs to be released to stop going up
+        if(key === 'w' || key === 'arrowup' || key === ' ') {
             keysPressed.up = false;
             updateInputState();
             return;
@@ -579,7 +667,7 @@
         // Show pause menu
         title.innerText = "PAUSED";
         title.style.color = "var(--dust)";
-        desc.innerHTML = "PRESS P OR SPACE TO RESUME<br>M TO TOGGLE SOUND";
+        desc.innerHTML = "PRESS P OR ENTER TO RESUME<br>M TO TOGGLE SOUND";
         btnStart.innerText = "RESUME";
         menu.classList.remove('hidden');
         
