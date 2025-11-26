@@ -26,9 +26,9 @@ A retro-style helicopter game with vector graphics and floaty physics. Navigate 
 ### Desktop (Keyboard)
 | Key | Action |
 |-----|--------|
-| W / ↑ | Fly Up |
+| W / ↑ / Space | Fly Up |
 | S / ↓ | Dive Down |
-| P / Space | Pause/Resume |
+| P / Enter | Pause/Resume |
 | M | Mute/Unmute |
 | Enter / Space | Start Game |
 
