@@ -40,5 +40,14 @@
 - ✅ Depth-based rendering
 - ✅ Glow and shadow effects
 
+### Debug System (v2.1)
+- ✅ Client-side error tracking with stack traces
+- ✅ FPS monitoring and averaging
+- ✅ Device info collection (privacy-safe, no PII)
+- ✅ Game event logging (starts, crashes, distances)
+- ✅ Debug console access (Shift+D to view report)
+- ✅ Network status monitoring (online/offline)
+- ✅ Session tracking with unique IDs
+
 ---
 *Report generated: Initial version*

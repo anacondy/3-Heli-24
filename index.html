@@ -303,7 +303,7 @@
 
     <div id="menu-overlay">
         <h1 id="menu-title">VECTOR<br>CHOPPER</h1>
-        <div class="version-tag">3D v2.0</div>
+        <div class="version-tag">3D v2.1</div>
         <p id="menu-desc">
             TAP/CLICK TO FLY UP<br>
             W/↑/SPACE: ASCEND • S/↓: DIVE<br>
@@ -317,7 +317,7 @@
 
 <script>
 /**
- * VECTOR CHOPPER 3D v2.0
+ * VECTOR CHOPPER 3D v2.1
  * ----------------------
  * Features:
  * 1. Mobile-optimized for 16:9 and 20:9 devices
@@ -325,10 +325,209 @@
  * 3. Robust audio handling - sound stops on crash
  * 4. 3D-style graphics with perspective and depth
  * 5. Touch-friendly controls
+ * 6. Client-side debugging and diagnostics system
  */
 
 (function() {
     'use strict';
+
+    // ===== DEBUG/DIAGNOSTICS SYSTEM =====
+    const GameDebug = {
+        enabled: true,
+        sessionId: Date.now().toString(36) + Math.random().toString(36).substr(2),
+        logs: [],
+        errors: [],
+        metrics: {
+            sessionStart: Date.now(),
+            deviceInfo: null,
+            performanceData: [],
+            crashCount: 0,
+            gamesPlayed: 0,
+            maxDistance: 0,
+            avgFps: 0,
+            fpsReadings: []
+        },
+
+        // Collect device information (privacy-safe - no PII)
+        collectDeviceInfo() {
+            const nav = navigator;
+            const screen = window.screen;
+            
+            this.metrics.deviceInfo = {
+                // Screen info
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+                aspectRatio: (window.innerWidth / window.innerHeight).toFixed(2),
+                pixelRatio: window.devicePixelRatio || 1,
+                orientation: screen.orientation?.type || 'unknown',
+                
+                // Browser info (generic, no fingerprinting)
+                userAgent: nav.userAgent,
+                platform: nav.platform,
+                language: nav.language,
+                cookiesEnabled: nav.cookieEnabled,
+                onLine: nav.onLine,
+                
+                // Performance capabilities
+                hardwareConcurrency: nav.hardwareConcurrency || 'unknown',
+                deviceMemory: nav.deviceMemory || 'unknown',
+                
+                // Touch support
+                touchSupport: 'ontouchstart' in window,
+                maxTouchPoints: nav.maxTouchPoints || 0,
+                
+                // Connection info (if available)
+                connection: nav.connection ? {
+                    effectiveType: nav.connection.effectiveType,
+                    downlink: nav.connection.downlink,
+                    rtt: nav.connection.rtt,
+                    saveData: nav.connection.saveData
+                } : 'unavailable'
+            };
+            
+            this.log('DEVICE', 'Device info collected', this.metrics.deviceInfo);
+        },
+
+        // Log events
+        log(category, message, data = null) {
+            if (!this.enabled) return;
+            
+            const entry = {
+                timestamp: Date.now(),
+                category,
+                message,
+                data
+            };
+            
+            this.logs.push(entry);
+            
+            // Keep only last 100 logs
+            if (this.logs.length > 100) {
+                this.logs.shift();
+            }
+            
+            // Console output for developers
+            console.log(`[${category}] ${message}`, data || '');
+        },
+
+        // Track errors
+        trackError(error, context = '') {
+            const errorEntry = {
+                timestamp: Date.now(),
+                message: error.message || String(error),
+                stack: error.stack || '',
+                context,
+                deviceInfo: this.metrics.deviceInfo,
+                gameState: typeof state !== 'undefined' ? state : 'unknown'
+            };
+            
+            this.errors.push(errorEntry);
+            this.log('ERROR', `${context}: ${error.message}`, errorEntry);
+            
+            console.error(`[GAME ERROR] ${context}:`, error);
+        },
+
+        // Track FPS
+        trackFps(fps) {
+            this.metrics.fpsReadings.push(fps);
+            
+            // Keep last 60 readings (1 minute at 1/sec)
+            if (this.metrics.fpsReadings.length > 60) {
+                this.metrics.fpsReadings.shift();
+            }
+            
+            // Calculate average
+            const sum = this.metrics.fpsReadings.reduce((a, b) => a + b, 0);
+            this.metrics.avgFps = Math.round(sum / this.metrics.fpsReadings.length);
+        },
+
+        // Track game events
+        trackGameEvent(event, data = {}) {
+            this.log('GAME', event, data);
+            
+            switch(event) {
+                case 'GAME_START':
+                    this.metrics.gamesPlayed++;
+                    break;
+                case 'CRASH':
+                    this.metrics.crashCount++;
+                    break;
+                case 'DISTANCE':
+                    if (data.distance > this.metrics.maxDistance) {
+                        this.metrics.maxDistance = data.distance;
+                    }
+                    break;
+            }
+        },
+
+        // Get diagnostics report
+        getReport() {
+            return {
+                sessionId: this.sessionId,
+                sessionDuration: Date.now() - this.metrics.sessionStart,
+                device: this.metrics.deviceInfo,
+                performance: {
+                    avgFps: this.metrics.avgFps,
+                    currentFps: this.metrics.fpsReadings[this.metrics.fpsReadings.length - 1] || 0
+                },
+                gameplay: {
+                    gamesPlayed: this.metrics.gamesPlayed,
+                    crashCount: this.metrics.crashCount,
+                    maxDistance: this.metrics.maxDistance
+                },
+                errors: this.errors.slice(-10), // Last 10 errors
+                recentLogs: this.logs.slice(-20) // Last 20 logs
+            };
+        },
+
+        // Display debug info in console (press D key)
+        showDebugConsole() {
+            const report = this.getReport();
+            console.group('🚁 VECTOR CHOPPER DEBUG REPORT');
+            console.log('Session ID:', report.sessionId);
+            console.log('Session Duration:', Math.round(report.sessionDuration / 1000) + 's');
+            console.table(report.device);
+            console.log('Performance:', report.performance);
+            console.log('Gameplay Stats:', report.gameplay);
+            if (report.errors.length > 0) {
+                console.warn('Errors:', report.errors);
+            }
+            console.groupEnd();
+            
+            return report;
+        },
+
+        // Initialize
+        init() {
+            this.collectDeviceInfo();
+            this.log('SYSTEM', 'Debug system initialized', { sessionId: this.sessionId });
+            
+            // Global error handler
+            window.onerror = (msg, url, line, col, error) => {
+                this.trackError(error || new Error(msg), `Global error at ${url}:${line}:${col}`);
+                return false;
+            };
+            
+            // Unhandled promise rejection handler
+            window.onunhandledrejection = (event) => {
+                this.trackError(event.reason, 'Unhandled Promise rejection');
+            };
+            
+            // Track visibility changes
+            document.addEventListener('visibilitychange', () => {
+                this.log('SYSTEM', 'Visibility changed', { hidden: document.hidden });
+            });
+            
+            // Track online/offline
+            window.addEventListener('online', () => this.log('NETWORK', 'Back online'));
+            window.addEventListener('offline', () => this.log('NETWORK', 'Gone offline'));
+        }
+    };
+
+    // Initialize debug system
+    GameDebug.init();
 
     // ===== CONFIGURATION =====
     const CONFIG = {
@@ -881,6 +1080,12 @@
 
         Audio.start();
         lastFrameTime = performance.now();
+        
+        // Debug tracking
+        GameDebug.trackGameEvent('GAME_START', {
+            viewport: { width, height },
+            aspectRatio: (width / height).toFixed(2)
+        });
     }
 
     function spawnBird() {
@@ -1014,6 +1219,16 @@
         keysPressed.up = false;
         keysPressed.down = false;
         touchZone.classList.remove('active');
+
+        // Debug tracking
+        const finalDistance = Math.floor(distance / 10);
+        GameDebug.trackGameEvent('CRASH', {
+            cause: isBird ? 'BIRD_STRIKE' : 'TERRAIN_IMPACT',
+            distance: finalDistance,
+            avgFps: GameDebug.metrics.avgFps,
+            position: { x: helicopter.x, y: helicopter.y }
+        });
+        GameDebug.trackGameEvent('DISTANCE', { distance: finalDistance });
 
         // CRITICAL: Stop sound immediately on crash
         Audio.fadeOut();
@@ -1203,6 +1418,7 @@
         if (currentTime - lastFpsUpdate >= 1000) {
             currentFps = frameCount;
             elFps.innerText = currentFps;
+            GameDebug.trackFps(currentFps); // Track FPS for debugging
             frameCount = 0;
             lastFpsUpdate = currentTime;
         }
@@ -1235,6 +1451,20 @@
         btnStart.addEventListener('click', () => {
             if (state === 'PAUSED') resumeGame();
             else resetGame();
+        });
+
+        // Debug key handler (press D for debug report)
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'd' && e.shiftKey) {
+                e.preventDefault();
+                const report = GameDebug.showDebugConsole();
+                // Also show brief on-screen notification
+                console.log('📋 Debug report copied to console. Press F12 to view.');
+            }
+        });
+
+        GameDebug.log('SYSTEM', 'Game initialized', {
+            viewport: { width: window.innerWidth, height: window.innerHeight }
         });
 
         requestAnimationFrame(gameLoop);

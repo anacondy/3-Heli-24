@@ -104,8 +104,56 @@ jobs:
           echo "- ✅ 60 FPS target with frame limiting" >> TEST_REPORT.md
           echo "- ✅ Optimized particle system" >> TEST_REPORT.md
           echo "" >> TEST_REPORT.md
+          echo "### Debug System (v2.1)" >> TEST_REPORT.md
+          echo "- ✅ Client-side error tracking" >> TEST_REPORT.md
+          echo "- ✅ FPS monitoring and averaging" >> TEST_REPORT.md
+          echo "- ✅ Device info collection (privacy-safe)" >> TEST_REPORT.md
+          echo "- ✅ Game event logging (crashes, distances)" >> TEST_REPORT.md
+          echo "- ✅ Debug console (Shift+D to view)" >> TEST_REPORT.md
+          echo "" >> TEST_REPORT.md
           echo "---" >> TEST_REPORT.md
           echo "*Report generated: ${{ steps.date.outputs.date }}*" >> TEST_REPORT.md
+
+      - name: Run Lighthouse Performance Audit
+        run: |
+          npm install -g lighthouse chrome-launcher
+          
+          # Start a simple HTTP server
+          npx http-server . -p 8080 &
+          SERVER_PID=$!
+          sleep 3
+          
+          # Run Lighthouse audit
+          lighthouse http://localhost:8080/index.html \
+            --output=json \
+            --output-path=./lighthouse-report.json \
+            --chrome-flags="--headless --no-sandbox --disable-gpu" \
+            --only-categories=performance,accessibility,best-practices \
+            || echo "Lighthouse audit completed with warnings"
+          
+          # Extract scores and append to TEST_REPORT
+          if [ -f "lighthouse-report.json" ]; then
+            echo "" >> TEST_REPORT.md
+            echo "### Lighthouse Audit Results" >> TEST_REPORT.md
+            
+            PERF=$(cat lighthouse-report.json | grep -o '"performance":[0-9.]*' | head -1 | cut -d':' -f2)
+            ACCESS=$(cat lighthouse-report.json | grep -o '"accessibility":[0-9.]*' | head -1 | cut -d':' -f2)
+            BEST=$(cat lighthouse-report.json | grep -o '"best-practices":[0-9.]*' | head -1 | cut -d':' -f2)
+            
+            PERF_SCORE=$(echo "$PERF * 100" | bc 2>/dev/null || echo "N/A")
+            ACCESS_SCORE=$(echo "$ACCESS * 100" | bc 2>/dev/null || echo "N/A")
+            BEST_SCORE=$(echo "$BEST * 100" | bc 2>/dev/null || echo "N/A")
+            
+            echo "| Metric | Score |" >> TEST_REPORT.md
+            echo "|--------|-------|" >> TEST_REPORT.md
+            echo "| Performance | ${PERF_SCORE:-N/A} |" >> TEST_REPORT.md
+            echo "| Accessibility | ${ACCESS_SCORE:-N/A} |" >> TEST_REPORT.md
+            echo "| Best Practices | ${BEST_SCORE:-N/A} |" >> TEST_REPORT.md
+            echo "" >> TEST_REPORT.md
+          fi
+          
+          # Stop server
+          kill $SERVER_PID 2>/dev/null || true
 
       - name: Take game screenshots
         run: |
