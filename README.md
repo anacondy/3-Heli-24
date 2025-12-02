@@ -81,8 +81,14 @@ A retro-style 3D helicopter game with vector graphics, floaty physics, and full 
 - **Mobile**: CSS viewport units, safe-area-insets, touch events
 - **Dependencies**: None (pure HTML/CSS/JS)
 
-## 📅 Automated Updates
-This game is automatically tested and updated every 3 days via GitHub Actions:
+## 📅 Automated Updates & Deployment
+This game is automatically tested, updated, and deployed via GitHub Actions:
+
+### Continuous Deployment
+- **Auto-deploy**: Site deploys automatically when changes are merged to `main`
+- **Live URL**: [https://anacondy.github.io/3-Heli-24/](https://anacondy.github.io/3-Heli-24/)
+
+### Automated Testing (Every 3 Days)
 - HTML validation and structure checks
 - Mobile compatibility verification
 - Performance metric validation
