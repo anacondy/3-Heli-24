@@ -55,11 +55,11 @@ jobs:
               echo "- ❌ Missing viewport meta tag" >> TEST_REPORT.md
             fi
             
-            # Check for Three.js
-            if grep -q 'three' index.html; then
-              echo "- ✅ Three.js library included (3D graphics)" >> TEST_REPORT.md
+            # Check for Canvas 2D with 3D-style effects
+            if grep -q 'getContext.*2d' index.html; then
+              echo "- ✅ HTML5 Canvas 2D with 3D-style effects" >> TEST_REPORT.md
             else
-              echo "- ⚠️ Three.js not detected" >> TEST_REPORT.md
+              echo "- ⚠️ Canvas 2D not detected" >> TEST_REPORT.md
             fi
             
             # Check for audio handling

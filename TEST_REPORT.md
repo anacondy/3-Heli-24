@@ -5,7 +5,7 @@
 ### HTML Validation
 - ✅ index.html exists
 - ✅ Viewport meta tag present (mobile support)
-- ✅ Three.js library included (3D graphics)
+- ✅ HTML5 Canvas 2D with 3D-style effects (parallax, depth rendering)
 - ✅ Web Audio API implemented
 - ✅ Touch event handlers present
 - ✅ Animation loop implemented (60 FPS target)
@@ -33,12 +33,12 @@
 - ✅ Audio fadeOut on crash (immediate stop)
 - ✅ Mute/unmute functionality
 
-### 3D Graphics (Three.js)
-- ✅ 3D helicopter model with multiple components
-- ✅ Animated rotor blades
-- ✅ Starfield background
-- ✅ Fog effect for depth
-- ✅ Lighting system (ambient + directional)
+### 3D-Style Graphics (Canvas 2D)
+- ✅ 3D-style helicopter with multiple components
+- ✅ Animated rotor blades with perspective
+- ✅ Parallax starfield background
+- ✅ Depth-based rendering
+- ✅ Glow and shadow effects
 
 ---
 *Report generated: Initial version*

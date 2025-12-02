@@ -332,22 +332,34 @@
 
     // ===== CONFIGURATION =====
     const CONFIG = {
-        // Physics (delta-time based, values per second)
-        gravity: 380,
-        thrust: 580,
-        terminalVel: 280,
-        maxRiseVel: 240,
-        speedStart: 180,
-        speedInc: 0.8,
+        // Physics (delta-time based)
+        gravity: 380,           // pixels per second² - downward acceleration
+        thrust: 580,            // pixels per second² - upward acceleration when flying
+        terminalVel: 280,       // pixels per second - maximum fall speed
+        maxRiseVel: 240,        // pixels per second - maximum rise speed
+        speedStart: 180,        // pixels per second - initial scroll speed
+        speedInc: 0.8,          // pixels per second² - scroll acceleration
         
         // Terrain
-        segmentWidth: 35,
-        terrainBuffer: 55,
-        minGap: 160,
+        segmentWidth: 35,       // pixels - width of each terrain segment
+        terrainBuffer: 55,      // segments ahead to generate
+        minGap: 160,            // pixels - minimum vertical passage
         
         // Performance
-        targetFPS: 60,
-        maxDeltaTime: 0.05
+        targetFPS: 60,          // target frame rate
+        maxDeltaTime: 0.05,     // seconds - cap to prevent physics issues
+        
+        // Audio parameters
+        audio: {
+            rotorIdleGain: 0.18,    // rotor volume when coasting
+            rotorActiveGain: 0.32,  // rotor volume when thrusting
+            lfoIdleFreq: 8,         // Hz - rotor chop frequency idle
+            lfoActiveFreq: 13,      // Hz - rotor chop frequency active
+            fadeInTime: 0.4,        // seconds - rotor start fade in
+            fadeOutTime: 0.25,      // seconds - crash fade out
+            throttleAttack: 0.08,   // seconds - throttle response time
+            throttleRelease: 0.25   // seconds - throttle release time
+        }
     };
 
     // ===== DOM ELEMENTS =====
@@ -459,7 +471,7 @@
                 // LFO for chopping sound
                 this.lfo = this.ctx.createOscillator();
                 this.lfo.type = 'sine';
-                this.lfo.frequency.value = 8;
+                this.lfo.frequency.value = CONFIG.audio.lfoIdleFreq;
 
                 const lfoGain = this.ctx.createGain();
                 lfoGain.gain.value = 0.5;
@@ -493,7 +505,7 @@
             this.rotorGain.gain.setValueAtTime(0, now);
             
             if (!isMuted) {
-                this.rotorGain.gain.linearRampToValueAtTime(0.18, now + 0.4);
+                this.rotorGain.gain.linearRampToValueAtTime(CONFIG.audio.rotorIdleGain, now + CONFIG.audio.fadeInTime);
             }
         },
 
@@ -519,7 +531,7 @@
             
             this.rotorGain.gain.cancelScheduledValues(now);
             this.rotorGain.gain.setValueAtTime(currentVal, now);
-            this.rotorGain.gain.linearRampToValueAtTime(0, now + 0.25);
+            this.rotorGain.gain.linearRampToValueAtTime(0, now + CONFIG.audio.fadeOutTime);
         },
 
         setMuted(muted) {
@@ -545,12 +557,13 @@
             if (!this.isInitialized || !this.ctx || isMuted || !this.isRunning) return;
             
             const t = this.ctx.currentTime;
+            const audio = CONFIG.audio;
             if (on) {
-                this.lfo.frequency.setTargetAtTime(13, t, 0.15);
-                this.rotorGain.gain.setTargetAtTime(0.32, t, 0.08);
+                this.lfo.frequency.setTargetAtTime(audio.lfoActiveFreq, t, audio.throttleAttack);
+                this.rotorGain.gain.setTargetAtTime(audio.rotorActiveGain, t, audio.throttleAttack);
             } else {
-                this.lfo.frequency.setTargetAtTime(8, t, 0.35);
-                this.rotorGain.gain.setTargetAtTime(0.18, t, 0.25);
+                this.lfo.frequency.setTargetAtTime(audio.lfoIdleFreq, t, audio.throttleRelease);
+                this.rotorGain.gain.setTargetAtTime(audio.rotorIdleGain, t, audio.throttleRelease);
             }
         },
 
