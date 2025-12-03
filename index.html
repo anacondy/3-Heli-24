@@ -292,6 +292,52 @@
                 padding-right: calc(20px + var(--sai-right));
             }
         }
+
+        /* --- PORTRAIT MODE BLOCKER (Mobile only) --- */
+        #rotate-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(5, 5, 5, 0.98);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--dust);
+            text-align: center;
+            padding: 20px;
+        }
+
+        #rotate-overlay .rotate-icon {
+            font-size: clamp(3rem, 15vw, 6rem);
+            margin-bottom: 20px;
+            animation: rotatePhone 2s ease-in-out infinite;
+        }
+
+        #rotate-overlay h2 {
+            font-size: clamp(1.2rem, 5vw, 2rem);
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px var(--dust);
+        }
+
+        #rotate-overlay p {
+            font-size: clamp(0.8rem, 3vw, 1rem);
+            opacity: 0.8;
+            color: var(--primary);
+        }
+
+        @keyframes rotatePhone {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-15deg); }
+            75% { transform: rotate(15deg); }
+        }
+
+        /* Show rotate overlay on mobile portrait */
+        @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+            #rotate-overlay { display: flex; }
+            #game-container { filter: blur(10px); pointer-events: none; }
+        }
     </style>
 </head>
 <body>
@@ -327,6 +373,13 @@
     </div>
 
     <div id="mute-feedback"></div>
+</div>
+
+<!-- Portrait Mode Blocker for Mobile -->
+<div id="rotate-overlay">
+    <div class="rotate-icon">📱↻</div>
+    <h2>ROTATE YOUR DEVICE</h2>
+    <p>This game plays best in landscape mode</p>
 </div>
 
 <script>
@@ -631,8 +684,21 @@
     let particles = [];
     let dustParticles = [];
     let birds = [];
+    let dragons = [];  // New dragon obstacles
     let stars = [];
     let shake = { x: 0, y: 0, intensity: 0 };
+    
+    // Difficulty scaling
+    let difficultyLevel = 1;
+    const DIFFICULTY = {
+        birdSpawnBase: 0.0025,
+        birdSpawnPerLevel: 0.0008,
+        dragonSpawnBase: 0.0008,
+        dragonSpawnPerLevel: 0.0004,
+        speedIncreasePerLevel: 0.15,
+        levelUpDistance: 500,  // Distance units to level up
+        maxLevel: 10
+    };
 
     // ===== AUDIO SYSTEM (Robust with crash handling) =====
     const Audio = {
@@ -1090,6 +1156,8 @@
         shake.intensity = 0;
         particles = [];
         birds = [];
+        dragons = [];  // Reset dragons
+        difficultyLevel = 1;  // Reset difficulty
         
         // Generate terrain
         terrain = [];
@@ -1147,12 +1215,39 @@
         });
     }
 
+    // Dragon spawning - larger, more dangerous obstacle
+    function spawnDragon() {
+        const y = Math.random() * (height - 200) + 100;
+        dragons.push({
+            x: width + 60,
+            y: y,
+            vx: -(scrollSpeed + 40 + Math.random() * 40),  // Slightly slower than birds
+            vy: (Math.random() - 0.5) * 60,  // Slight vertical movement
+            wingPhase: Math.random() * Math.PI * 2,
+            wingSpeed: 0.08 + Math.random() * 0.04,
+            breathPhase: Math.random() * Math.PI * 2,
+            size: 1.2 + Math.random() * 0.4  // Size variation
+        });
+    }
+
     function update(dt) {
         // Cap delta time
         dt = Math.min(dt, CONFIG.maxDeltaTime);
         
         distance += scrollSpeed * dt;
         scrollSpeed += CONFIG.speedInc * dt;
+        
+        // Update difficulty level based on distance
+        const newLevel = Math.min(
+            Math.floor(distance / 10 / DIFFICULTY.levelUpDistance) + 1,
+            DIFFICULTY.maxLevel
+        );
+        if (newLevel > difficultyLevel) {
+            difficultyLevel = newLevel;
+            // Increase scroll speed with each level
+            scrollSpeed += DIFFICULTY.speedIncreasePerLevel * scrollSpeed;
+            GameDebug.log('GAME', 'Level up!', { level: difficultyLevel, speed: scrollSpeed });
+        }
 
         // Physics
         if (inputActive) {
@@ -1208,8 +1303,9 @@
             terrain.shift();
         }
 
-        // Birds
-        if (Math.random() < (0.0025 + scrollSpeed * 0.000015) * dt * 60) {
+        // Birds - spawn rate increases with difficulty
+        const birdSpawnRate = (DIFFICULTY.birdSpawnBase + DIFFICULTY.birdSpawnPerLevel * difficultyLevel + scrollSpeed * 0.000015) * dt * 60;
+        if (Math.random() < birdSpawnRate) {
             spawnBird();
         }
         
@@ -1219,10 +1315,37 @@
             
             // Collision
             if (Math.abs(helicopter.x - bird.x) < 22 && Math.abs(helicopter.y - bird.y) < 18) {
-                gameOver(true);
+                gameOver('bird');
             }
         });
         birds = birds.filter(b => b.x > -50);
+
+        // Dragons - spawn after level 2, rate increases with difficulty
+        if (difficultyLevel >= 2) {
+            const dragonSpawnRate = (DIFFICULTY.dragonSpawnBase + DIFFICULTY.dragonSpawnPerLevel * (difficultyLevel - 1)) * dt * 60;
+            if (Math.random() < dragonSpawnRate) {
+                spawnDragon();
+            }
+        }
+        
+        dragons.forEach(dragon => {
+            dragon.x += dragon.vx * dt;
+            dragon.y += dragon.vy * dt;
+            dragon.wingPhase += dragon.wingSpeed;
+            dragon.breathPhase += 0.05;
+            
+            // Bounce off top/bottom bounds
+            if (dragon.y < 80 || dragon.y > height - 80) {
+                dragon.vy *= -1;
+            }
+            
+            // Collision (larger hitbox for dragons)
+            const hitboxSize = 28 * dragon.size;
+            if (Math.abs(helicopter.x - dragon.x) < hitboxSize && Math.abs(helicopter.y - dragon.y) < hitboxSize) {
+                gameOver('dragon');
+            }
+        });
+        dragons = dragons.filter(d => d.x > -80);
 
         // Terrain collision
         const heliIndex = Math.floor(helicopter.x / CONFIG.segmentWidth);
@@ -1231,12 +1354,12 @@
             const floor = height - terrain[heliIndex].bottom;
             
             if (helicopter.y - helicopter.radius < ceiling || helicopter.y + helicopter.radius > floor) {
-                gameOver(false);
+                gameOver('terrain');
             }
         }
         
         if (helicopter.y < 0 || helicopter.y > height) {
-            gameOver(false);
+            gameOver('terrain');
         }
 
         // Update particles
@@ -1259,9 +1382,9 @@
         elDist.innerText = String(Math.floor(distance / 10)).padStart(4, '0');
     }
 
-    function gameOver(isBird) {
+    function gameOver(cause) {
         state = 'CRASHED';
-        shake.intensity = 22;
+        shake.intensity = cause === 'dragon' ? 30 : 22;  // Dragons cause bigger shake
         inputActive = false;
         pointerDown = false;
         keysPressed.up = false;
@@ -1270,9 +1393,19 @@
 
         // Debug tracking
         const finalDistance = Math.floor(distance / 10);
+        
+        // Map cause to display text
+        const causeText = {
+            'bird': 'BIRD STRIKE',
+            'dragon': 'DRAGON ATTACK',
+            'terrain': 'TERRAIN IMPACT'
+        };
+        const causeDisplay = causeText[cause] || 'UNKNOWN';
+        
         GameDebug.trackGameEvent('CRASH', {
-            cause: isBird ? 'BIRD_STRIKE' : 'TERRAIN_IMPACT',
+            cause: causeDisplay,
             distance: finalDistance,
+            level: difficultyLevel,
             avgFps: GameDebug.metrics.avgFps,
             position: { x: helicopter.x, y: helicopter.y }
         });
@@ -1281,9 +1414,9 @@
         // CRITICAL: Stop sound immediately on crash
         Audio.fadeOut();
         Audio.playExplosion();
-        if (isBird) Audio.playBirdHit();
+        if (cause === 'bird' || cause === 'dragon') Audio.playBirdHit();
 
-        elSys.innerText = isBird ? "BIRD STRIKE" : "IMPACT";
+        elSys.innerText = causeDisplay;
         elSys.style.color = "var(--alert)";
 
         setTimeout(() => {
@@ -1292,7 +1425,7 @@
             
             title.innerText = "MISSION FAILED";
             title.style.color = "var(--alert)";
-            desc.innerHTML = `DISTANCE: ${Math.floor(distance / 10)}<br>CAUSE: ${isBird ? "BIRD STRIKE" : "TERRAIN IMPACT"}<br><br>TAP OR PRESS ENTER TO RESTART`;
+            desc.innerHTML = `DISTANCE: ${finalDistance}<br>LEVEL: ${difficultyLevel}<br>CAUSE: ${causeDisplay}<br><br>TAP OR PRESS ENTER TO RESTART`;
             btnStart.innerText = "REBOOT SYSTEM";
             menu.classList.remove('hidden');
             
@@ -1388,6 +1521,91 @@
             ctx.lineTo(b.x + 9, b.y + wingY);
             ctx.lineTo(b.x + 18, b.y);
             ctx.stroke();
+        });
+
+        // Dragons - vector style matching site aesthetics
+        dragons.forEach(d => {
+            const wingY = Math.sin(d.wingPhase) * 12 * d.size;
+            const breathGlow = Math.sin(d.breathPhase) * 0.3 + 0.7;
+            const s = d.size;
+            
+            ctx.save();
+            ctx.translate(d.x, d.y);
+            
+            // Dragon body glow
+            ctx.shadowColor = '#ff3333';
+            ctx.shadowBlur = 15 * s;
+            ctx.strokeStyle = `rgba(255, 51, 51, ${breathGlow})`;
+            ctx.lineWidth = 3 * s;
+            
+            // Body - serpentine shape
+            ctx.beginPath();
+            ctx.moveTo(25 * s, 0);
+            ctx.quadraticCurveTo(15 * s, -8 * s, 0, 0);
+            ctx.quadraticCurveTo(-15 * s, 8 * s, -30 * s, 0);
+            ctx.stroke();
+            
+            // Head
+            ctx.beginPath();
+            ctx.moveTo(25 * s, 0);
+            ctx.lineTo(35 * s, -5 * s);
+            ctx.lineTo(40 * s, 0);
+            ctx.lineTo(35 * s, 5 * s);
+            ctx.lineTo(25 * s, 0);
+            ctx.stroke();
+            
+            // Eye (glowing)
+            ctx.fillStyle = '#39ff14';
+            ctx.shadowColor = '#39ff14';
+            ctx.beginPath();
+            ctx.arc(32 * s, -1 * s, 2 * s, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Wings
+            ctx.strokeStyle = `rgba(255, 136, 68, ${breathGlow})`;
+            ctx.shadowColor = '#ff8844';
+            ctx.lineWidth = 2 * s;
+            
+            // Upper wing
+            ctx.beginPath();
+            ctx.moveTo(5 * s, -3 * s);
+            ctx.lineTo(0, -20 * s + wingY);
+            ctx.lineTo(-15 * s, -10 * s + wingY * 0.5);
+            ctx.stroke();
+            
+            // Lower wing
+            ctx.beginPath();
+            ctx.moveTo(5 * s, 3 * s);
+            ctx.lineTo(0, 20 * s - wingY);
+            ctx.lineTo(-15 * s, 10 * s - wingY * 0.5);
+            ctx.stroke();
+            
+            // Tail spikes
+            ctx.strokeStyle = '#ff3333';
+            ctx.beginPath();
+            ctx.moveTo(-30 * s, 0);
+            ctx.lineTo(-35 * s, -8 * s);
+            ctx.moveTo(-30 * s, 0);
+            ctx.lineTo(-40 * s, 0);
+            ctx.moveTo(-30 * s, 0);
+            ctx.lineTo(-35 * s, 8 * s);
+            ctx.stroke();
+            
+            // Fire breath (when close to helicopter or random)
+            if (d.x < width * 0.6 && Math.sin(d.breathPhase * 3) > 0.5) {
+                ctx.fillStyle = `rgba(255, 136, 68, ${breathGlow * 0.6})`;
+                ctx.shadowColor = '#ff8844';
+                ctx.shadowBlur = 20;
+                ctx.beginPath();
+                ctx.moveTo(40 * s, 0);
+                ctx.lineTo(55 * s + Math.random() * 10, -5 * s);
+                ctx.lineTo(60 * s + Math.random() * 15, 0);
+                ctx.lineTo(55 * s + Math.random() * 10, 5 * s);
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            ctx.restore();
         });
 
         // Particles
