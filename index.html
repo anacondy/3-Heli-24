@@ -622,7 +622,7 @@
             lfoIdleFreq: 8,         // Hz - rotor chop frequency idle
             lfoActiveFreq: 13,      // Hz - rotor chop frequency active
             fadeInTime: 0.4,        // seconds - rotor start fade in
-            fadeOutTime: 0.25,      // seconds - crash fade out
+            fadeOutTime: 0.4,       // seconds - crash fade out (longer for noticeable effect)
             throttleAttack: 0.08,   // seconds - throttle response time
             throttleRelease: 0.25   // seconds - throttle release time
         }
@@ -804,22 +804,46 @@
             this.isRunning = false;
             const now = this.ctx.currentTime;
             
-            // Immediate stop - no delay
+            // Cancel all scheduled values and stop immediately
             this.rotorGain.gain.cancelScheduledValues(now);
             this.rotorGain.gain.setValueAtTime(0, now);
+            
+            // Also stop LFO modulation to ensure complete silence
+            if (this.lfo) {
+                this.lfo.frequency.cancelScheduledValues(now);
+                this.lfo.frequency.setValueAtTime(0, now);
+            }
+            
+            GameDebug.log('AUDIO', 'Rotor sound stopped completely');
         },
 
-        // Quick fade out for crash
+        // Quick fade out for crash - with guaranteed stop
         fadeOut() {
             if (!this.isInitialized || !this.ctx) return;
             
             this.isRunning = false;
             const now = this.ctx.currentTime;
-            const currentVal = this.rotorGain.gain.value;
+            const fadeTime = CONFIG.audio.fadeOutTime;
             
+            // Cancel any scheduled changes
             this.rotorGain.gain.cancelScheduledValues(now);
-            this.rotorGain.gain.setValueAtTime(currentVal, now);
-            this.rotorGain.gain.linearRampToValueAtTime(0, now + CONFIG.audio.fadeOutTime);
+            this.lfo.frequency.cancelScheduledValues(now);
+            
+            // Get current value and ramp down
+            const currentGain = this.rotorGain.gain.value;
+            this.rotorGain.gain.setValueAtTime(currentGain, now);
+            this.rotorGain.gain.linearRampToValueAtTime(0, now + fadeTime);
+            
+            // Also ramp down LFO frequency for smooth fade
+            this.lfo.frequency.setValueAtTime(this.lfo.frequency.value, now);
+            this.lfo.frequency.linearRampToValueAtTime(0, now + fadeTime);
+            
+            // Schedule complete stop after fade completes
+            setTimeout(() => {
+                this.stop();
+            }, fadeTime * 1000 + 50);  // Add 50ms buffer
+            
+            GameDebug.log('AUDIO', 'Rotor sound fading out', { fadeTime });
         },
 
         setMuted(muted) {
@@ -1686,17 +1710,34 @@
         ctx.restore();
     }
 
-    // ===== MAIN LOOP (Optimized for all refresh rates) =====
+    // ===== MAIN LOOP (Optimized for all refresh rates: 60Hz, 90Hz, 120Hz, 144Hz) =====
     let lastRenderTime = 0;
-    const minFrameTime = 1000 / 144; // Support up to 144Hz displays smoothly
+    let detectedRefreshRate = 60;  // Default assumption
+    let refreshRateFrames = [];
     
     function gameLoop(currentTime) {
-        // FPS calculation
+        // FPS calculation - accurately shows actual frame rate
         frameCount++;
         if (currentTime - lastFpsUpdate >= 1000) {
             currentFps = frameCount;
+            
+            // Detect display refresh rate from actual FPS
+            if (currentFps > 55) {
+                if (currentFps >= 115) {
+                    detectedRefreshRate = 120;
+                } else if (currentFps >= 85) {
+                    detectedRefreshRate = 90;
+                } else {
+                    detectedRefreshRate = 60;
+                }
+            }
+            
             elFps.innerText = currentFps;
-            GameDebug.trackFps(currentFps); // Track FPS for debugging
+            GameDebug.trackFps(currentFps);
+            GameDebug.log('PERFORMANCE', 'Frame rate update', { 
+                fps: currentFps, 
+                detectedRefreshRate 
+            });
             frameCount = 0;
             lastFpsUpdate = currentTime;
         }
@@ -1710,6 +1751,7 @@
         deltaTime = Math.min(deltaTime, CONFIG.maxDeltaTime);
         
         // Ensure minimum delta for very high refresh rates (prevents micro-stuttering)
+        // This ensures smooth gameplay on 120Hz+ displays
         if (deltaTime < 0.001) deltaTime = 0.001;
 
         // Update game state
@@ -1723,6 +1765,7 @@
         // Render
         draw();
 
+        // Use requestAnimationFrame for native refresh rate support
         requestAnimationFrame(gameLoop);
     }
 
