@@ -376,10 +376,10 @@
 </div>
 
 <!-- Portrait Mode Blocker for Mobile -->
-<div id="rotate-overlay">
-    <div class="rotate-icon">📱↻</div>
-    <h2>ROTATE YOUR DEVICE</h2>
-    <p>This game plays best in landscape mode</p>
+<div id="rotate-overlay" role="dialog" aria-labelledby="rotate-title" aria-describedby="rotate-desc">
+    <div class="rotate-icon" aria-hidden="true">📱↻</div>
+    <h2 id="rotate-title">ROTATE YOUR DEVICE</h2>
+    <p id="rotate-desc">This game plays best in landscape mode</p>
 </div>
 
 <script>
@@ -696,8 +696,11 @@
         dragonSpawnBase: 0.0008,
         dragonSpawnPerLevel: 0.0004,
         speedIncreasePerLevel: 0.15,
-        levelUpDistance: 500,  // Distance units to level up
-        maxLevel: 10
+        levelUpDistance: 500,  // Distance units (distance/10) to level up
+        maxLevel: 10,
+        distanceScale: 10,     // Divisor for converting raw distance to display distance
+        dragonFireThreshold: 0.6,  // Screen position (0-1) where dragons start breathing fire
+        dragonFireFrequency: 0.5   // Threshold for fire breath animation cycle
     };
 
     // ===== AUDIO SYSTEM (Robust with crash handling) =====
@@ -1237,9 +1240,10 @@
         distance += scrollSpeed * dt;
         scrollSpeed += CONFIG.speedInc * dt;
         
-        // Update difficulty level based on distance
+        // Update difficulty level based on distance (using display distance units)
+        const displayDistance = distance / DIFFICULTY.distanceScale;
         const newLevel = Math.min(
-            Math.floor(distance / 10 / DIFFICULTY.levelUpDistance) + 1,
+            Math.floor(displayDistance / DIFFICULTY.levelUpDistance) + 1,
             DIFFICULTY.maxLevel
         );
         if (newLevel > difficultyLevel) {
@@ -1591,16 +1595,21 @@
             ctx.lineTo(-35 * s, 8 * s);
             ctx.stroke();
             
-            // Fire breath (when close to helicopter or random)
-            if (d.x < width * 0.6 && Math.sin(d.breathPhase * 3) > 0.5) {
+            // Fire breath (when dragon is past fire threshold on screen and breath cycle is active)
+            if (d.x < width * DIFFICULTY.dragonFireThreshold && Math.sin(d.breathPhase * 3) > DIFFICULTY.dragonFireFrequency) {
+                // Pre-calculate flame offsets for this frame (reduces random calls)
+                const flameOffset1 = Math.sin(d.breathPhase * 7) * 10;
+                const flameOffset2 = Math.cos(d.breathPhase * 5) * 15;
+                const flameOffset3 = Math.sin(d.breathPhase * 9) * 10;
+                
                 ctx.fillStyle = `rgba(255, 136, 68, ${breathGlow * 0.6})`;
                 ctx.shadowColor = '#ff8844';
                 ctx.shadowBlur = 20;
                 ctx.beginPath();
                 ctx.moveTo(40 * s, 0);
-                ctx.lineTo(55 * s + Math.random() * 10, -5 * s);
-                ctx.lineTo(60 * s + Math.random() * 15, 0);
-                ctx.lineTo(55 * s + Math.random() * 10, 5 * s);
+                ctx.lineTo(55 * s + flameOffset1, -5 * s);
+                ctx.lineTo(60 * s + flameOffset2, 0);
+                ctx.lineTo(55 * s + flameOffset3, 5 * s);
                 ctx.closePath();
                 ctx.fill();
             }
