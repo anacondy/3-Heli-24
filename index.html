@@ -712,6 +712,7 @@
         lfo: null,
         isRunning: false,
         isInitialized: false,
+        fadeOutTimeout: null,  // Track fade timeout to prevent race conditions
 
         init() {
             if (this.ctx) return;
@@ -804,9 +805,17 @@
             this.isRunning = false;
             const now = this.ctx.currentTime;
             
+            // Cancel fade timeout if pending
+            if (this.fadeOutTimeout) {
+                clearTimeout(this.fadeOutTimeout);
+                this.fadeOutTimeout = null;
+            }
+            
             // Cancel all scheduled values and stop immediately
-            this.rotorGain.gain.cancelScheduledValues(now);
-            this.rotorGain.gain.setValueAtTime(0, now);
+            if (this.rotorGain) {
+                this.rotorGain.gain.cancelScheduledValues(now);
+                this.rotorGain.gain.setValueAtTime(0, now);
+            }
             
             // Also stop LFO modulation to ensure complete silence
             if (this.lfo) {
@@ -825,21 +834,30 @@
             const now = this.ctx.currentTime;
             const fadeTime = CONFIG.audio.fadeOutTime;
             
-            // Cancel any scheduled changes
-            this.rotorGain.gain.cancelScheduledValues(now);
-            this.lfo.frequency.cancelScheduledValues(now);
+            // Clear any existing fade timeout to prevent race conditions
+            if (this.fadeOutTimeout) {
+                clearTimeout(this.fadeOutTimeout);
+                this.fadeOutTimeout = null;
+            }
             
-            // Get current value and ramp down
-            const currentGain = this.rotorGain.gain.value;
-            this.rotorGain.gain.setValueAtTime(currentGain, now);
-            this.rotorGain.gain.linearRampToValueAtTime(0, now + fadeTime);
+            // Cancel any scheduled changes and ramp down gain
+            if (this.rotorGain) {
+                this.rotorGain.gain.cancelScheduledValues(now);
+                const currentGain = this.rotorGain.gain.value;
+                this.rotorGain.gain.setValueAtTime(currentGain, now);
+                this.rotorGain.gain.linearRampToValueAtTime(0, now + fadeTime);
+            }
             
             // Also ramp down LFO frequency for smooth fade
-            this.lfo.frequency.setValueAtTime(this.lfo.frequency.value, now);
-            this.lfo.frequency.linearRampToValueAtTime(0, now + fadeTime);
+            if (this.lfo) {
+                this.lfo.frequency.cancelScheduledValues(now);
+                this.lfo.frequency.setValueAtTime(this.lfo.frequency.value, now);
+                this.lfo.frequency.linearRampToValueAtTime(0, now + fadeTime);
+            }
             
             // Schedule complete stop after fade completes
-            setTimeout(() => {
+            this.fadeOutTimeout = setTimeout(() => {
+                this.fadeOutTimeout = null;
                 this.stop();
             }, fadeTime * 1000 + 50);  // Add 50ms buffer
             
