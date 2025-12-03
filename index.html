@@ -36,7 +36,7 @@
             overflow: hidden;
             font-family: 'Share Tech Mono', monospace, 'Courier New', monospace;
             -webkit-tap-highlight-color: transparent;
-            touch-action: none;
+            touch-action: manipulation;
             user-select: none;
             -webkit-user-select: none;
             position: fixed;
@@ -52,6 +52,8 @@
             height: 100%;
             background: radial-gradient(circle at center, #111 0%, #000 100%);
             outline: none;
+            /* Disable default touch behaviors during gameplay */
+            touch-action: none;
         }
 
         canvas {
@@ -63,6 +65,8 @@
             height: 100%;
             /* 3D-like glow effect */
             filter: drop-shadow(0 0 2px rgba(57, 255, 20, 0.3));
+            /* Allow touch events to pass through to container */
+            pointer-events: none;
         }
 
         /* --- SCANLINES --- */
@@ -113,6 +117,8 @@
             padding: calc(15px + var(--sai-top)) calc(15px + var(--sai-right)) calc(15px + var(--sai-bottom)) calc(15px + var(--sai-left));
             pointer-events: auto;
             transition: opacity 0.3s ease;
+            /* Enable touch scrolling within menu if needed */
+            touch-action: manipulation;
         }
 
         h1 {
@@ -156,12 +162,20 @@
             pointer-events: auto;
             border-radius: 4px;
             min-height: 44px;
+            min-width: 44px;
+            /* Mobile touch optimization */
+            -webkit-tap-highlight-color: rgba(255, 136, 68, 0.3);
+            touch-action: manipulation;
+            position: relative;
+            z-index: 110;
         }
 
-        .btn:active {
+        .btn:active,
+        .btn:focus {
             background: var(--dust);
             color: #000;
             transform: scale(0.95);
+            outline: none;
         }
 
         .hidden {
@@ -563,7 +577,10 @@
 
     // ===== DOM ELEMENTS =====
     const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { 
+        alpha: false,  // Disable alpha for better performance
+        desynchronized: true  // Enable low-latency rendering on supported devices
+    });
     const container = document.getElementById('game-container');
     const menu = document.getElementById('menu-overlay');
     const btnStart = document.getElementById('btn-start');
@@ -577,6 +594,9 @@
     const elFps = document.getElementById('val-fps');
     const elMute = document.getElementById('mute-indicator');
     const elMuteFeedback = document.getElementById('mute-feedback');
+
+    // Device pixel ratio for high DPI displays (capped for performance)
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
 
     // ===== GAME STATE =====
     let width = window.innerWidth;
@@ -807,8 +827,15 @@
     function resize() {
         width = window.innerWidth;
         height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
+        
+        // Set canvas size accounting for device pixel ratio (for crisp rendering)
+        canvas.width = width * pixelRatio;
+        canvas.height = height * pixelRatio;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        
+        // Scale context to match pixel ratio
+        ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
         
         if (state === 'MENU') {
             helicopter.x = width * 0.25;
@@ -816,6 +843,12 @@
             initDust();
             initStars();
         }
+        
+        GameDebug.log('RESIZE', 'Canvas resized', { 
+            width, height, pixelRatio,
+            canvasWidth: canvas.width, 
+            canvasHeight: canvas.height 
+        });
     }
     
     window.addEventListener('resize', resize);
@@ -922,8 +955,16 @@
     }
 
     function handlePointerDown(e) {
-        if (e.type === 'touchstart') e.preventDefault();
-        if (e.target.tagName === 'BUTTON') return;
+        // Check if target is a button or inside a button - allow native behavior
+        if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+            return; // Don't prevent default, let the button handle it
+        }
+        
+        // Only prevent default for gameplay touches (not menu/button interactions)
+        if (e.type === 'touchstart' && state === 'PLAYING') {
+            e.preventDefault();
+        }
+        
         if (state !== 'PLAYING') return;
         
         pointerDown = true;
@@ -998,10 +1039,17 @@
     // Event listeners
     container.addEventListener('touchstart', handlePointerDown, { passive: false });
     window.addEventListener('touchend', handlePointerUp);
+    window.addEventListener('touchcancel', handlePointerUp); // Handle interrupted touches
     window.addEventListener('mousedown', handlePointerDown);
     window.addEventListener('mouseup', handlePointerUp);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    
+    // Prevent context menu on long press (mobile)
+    container.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        return false;
+    });
 
     // ===== GAME FUNCTIONS =====
     function pauseGame() {
@@ -1411,7 +1459,10 @@
         ctx.restore();
     }
 
-    // ===== MAIN LOOP (60 FPS) =====
+    // ===== MAIN LOOP (Optimized for all refresh rates) =====
+    let lastRenderTime = 0;
+    const minFrameTime = 1000 / 144; // Support up to 144Hz displays smoothly
+    
     function gameLoop(currentTime) {
         // FPS calculation
         frameCount++;
@@ -1423,12 +1474,18 @@
             lastFpsUpdate = currentTime;
         }
 
-        // Delta time
+        // Delta time calculation with smoothing for high refresh rates
         if (!lastFrameTime) lastFrameTime = currentTime;
-        const deltaTime = (currentTime - lastFrameTime) / 1000;
+        let deltaTime = (currentTime - lastFrameTime) / 1000;
         lastFrameTime = currentTime;
+        
+        // Cap delta time for consistent physics (prevents jumps on tab switch)
+        deltaTime = Math.min(deltaTime, CONFIG.maxDeltaTime);
+        
+        // Ensure minimum delta for very high refresh rates (prevents micro-stuttering)
+        if (deltaTime < 0.001) deltaTime = 0.001;
 
-        // Update
+        // Update game state
         if (state === 'PLAYING') {
             update(deltaTime);
         } else if (state === 'MENU' || state === 'PAUSED') {
@@ -1448,10 +1505,28 @@
         initDust();
         initStars();
         
-        btnStart.addEventListener('click', () => {
-            if (state === 'PAUSED') resumeGame();
-            else resetGame();
-        });
+        // Button handler function
+        function handleButtonAction(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (!canRestart && state === 'MENU') return;
+            
+            if (state === 'PAUSED') {
+                resumeGame();
+            } else {
+                resetGame();
+            }
+        }
+        
+        // Add both click and touch handlers for robust mobile support
+        btnStart.addEventListener('click', handleButtonAction);
+        btnStart.addEventListener('touchend', handleButtonAction, { passive: false });
+        
+        // Prevent touchstart from triggering other handlers
+        btnStart.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+        }, { passive: true });
 
         // Debug key handler (press D for debug report)
         window.addEventListener('keydown', (e) => {
