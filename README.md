@@ -33,8 +33,8 @@ A retro-style 3D helicopter game with vector graphics, floaty physics, and full 
 - 📐 Optimized for **16:9** and **20:9** aspect ratios in landscape
 - 👆 Touch-friendly controls with visual feedback
 - 🔒 Safe area support for notched devices (iPhone X+, Android)
-- 🖥️ **Landscape-only mode** - game only runs in landscape orientation
-- 📲 "Rotate Your Device" overlay blocks gameplay in portrait mode
+- 🖥️ **Enforced landscape orientation** - portrait mode is blocked with overlay
+- 📲 "Rotate Your Device" overlay prompts users to rotate to landscape
 
 ### Performance
 - ⚡ **Supports 60Hz, 90Hz, 120Hz, and 144Hz** displays
