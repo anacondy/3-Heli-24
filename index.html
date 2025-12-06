@@ -36,7 +36,7 @@
             overflow: hidden;
             font-family: 'Share Tech Mono', monospace, 'Courier New', monospace;
             -webkit-tap-highlight-color: transparent;
-            touch-action: none;
+            touch-action: manipulation;
             user-select: none;
             -webkit-user-select: none;
             position: fixed;
@@ -52,6 +52,8 @@
             height: 100%;
             background: radial-gradient(circle at center, #111 0%, #000 100%);
             outline: none;
+            /* Disable default touch behaviors during gameplay */
+            touch-action: none;
         }
 
         canvas {
@@ -63,6 +65,8 @@
             height: 100%;
             /* 3D-like glow effect */
             filter: drop-shadow(0 0 2px rgba(57, 255, 20, 0.3));
+            /* Allow touch events to pass through to container */
+            pointer-events: none;
         }
 
         /* --- SCANLINES --- */
@@ -113,6 +117,8 @@
             padding: calc(15px + var(--sai-top)) calc(15px + var(--sai-right)) calc(15px + var(--sai-bottom)) calc(15px + var(--sai-left));
             pointer-events: auto;
             transition: opacity 0.3s ease;
+            /* Enable touch scrolling within menu if needed */
+            touch-action: manipulation;
         }
 
         h1 {
@@ -156,12 +162,20 @@
             pointer-events: auto;
             border-radius: 4px;
             min-height: 44px;
+            min-width: 44px;
+            /* Mobile touch optimization */
+            -webkit-tap-highlight-color: rgba(255, 136, 68, 0.3);
+            touch-action: manipulation;
+            position: relative;
+            z-index: 110;
         }
 
-        .btn:active {
+        .btn:active,
+        .btn:focus {
             background: var(--dust);
             color: #000;
             transform: scale(0.95);
+            outline: none;
         }
 
         .hidden {
@@ -278,6 +292,52 @@
                 padding-right: calc(20px + var(--sai-right));
             }
         }
+
+        /* --- PORTRAIT MODE BLOCKER (Mobile only) --- */
+        #rotate-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(5, 5, 5, 0.98);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--dust);
+            text-align: center;
+            padding: 20px;
+        }
+
+        #rotate-overlay .rotate-icon {
+            font-size: clamp(3rem, 15vw, 6rem);
+            margin-bottom: 20px;
+            animation: rotatePhone 2s ease-in-out infinite;
+        }
+
+        #rotate-overlay h2 {
+            font-size: clamp(1.2rem, 5vw, 2rem);
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px var(--dust);
+        }
+
+        #rotate-overlay p {
+            font-size: clamp(0.8rem, 3vw, 1rem);
+            opacity: 0.8;
+            color: var(--primary);
+        }
+
+        @keyframes rotatePhone {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-15deg); }
+            75% { transform: rotate(15deg); }
+        }
+
+        /* Show rotate overlay on mobile portrait */
+        @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+            #rotate-overlay { display: flex; }
+            #game-container { filter: blur(10px); pointer-events: none; }
+        }
     </style>
 </head>
 <body>
@@ -313,6 +373,13 @@
     </div>
 
     <div id="mute-feedback"></div>
+</div>
+
+<!-- Portrait Mode Blocker for Mobile -->
+<div id="rotate-overlay" role="dialog" aria-labelledby="rotate-title" aria-describedby="rotate-desc">
+    <div class="rotate-icon" aria-hidden="true">📱↻</div>
+    <h2 id="rotate-title">ROTATE YOUR DEVICE</h2>
+    <p id="rotate-desc">This game plays best in landscape mode</p>
 </div>
 
 <script>
@@ -555,7 +622,7 @@
             lfoIdleFreq: 8,         // Hz - rotor chop frequency idle
             lfoActiveFreq: 13,      // Hz - rotor chop frequency active
             fadeInTime: 0.4,        // seconds - rotor start fade in
-            fadeOutTime: 0.25,      // seconds - crash fade out
+            fadeOutTime: 0.4,       // seconds - crash fade out (longer for noticeable effect)
             throttleAttack: 0.08,   // seconds - throttle response time
             throttleRelease: 0.25   // seconds - throttle release time
         }
@@ -563,7 +630,10 @@
 
     // ===== DOM ELEMENTS =====
     const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { 
+        alpha: false,  // Disable alpha for better performance
+        desynchronized: true  // Enable low-latency rendering on supported devices
+    });
     const container = document.getElementById('game-container');
     const menu = document.getElementById('menu-overlay');
     const btnStart = document.getElementById('btn-start');
@@ -577,6 +647,9 @@
     const elFps = document.getElementById('val-fps');
     const elMute = document.getElementById('mute-indicator');
     const elMuteFeedback = document.getElementById('mute-feedback');
+
+    // Device pixel ratio for high DPI displays (capped for performance)
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
 
     // ===== GAME STATE =====
     let width = window.innerWidth;
@@ -611,8 +684,24 @@
     let particles = [];
     let dustParticles = [];
     let birds = [];
+    let dragons = [];  // New dragon obstacles
     let stars = [];
     let shake = { x: 0, y: 0, intensity: 0 };
+    
+    // Difficulty scaling
+    let difficultyLevel = 1;
+    const DIFFICULTY = {
+        birdSpawnBase: 0.0025,
+        birdSpawnPerLevel: 0.0008,
+        dragonSpawnBase: 0.0008,
+        dragonSpawnPerLevel: 0.0004,
+        speedIncreasePerLevel: 0.15,
+        levelUpDistance: 500,  // Distance units (distance/10) to level up
+        maxLevel: 10,
+        distanceScale: 10,     // Divisor for converting raw distance to display distance
+        dragonFireThreshold: 0.6,  // Screen position (0-1) where dragons start breathing fire
+        dragonFireFrequency: 0.5   // Threshold for fire breath animation cycle
+    };
 
     // ===== AUDIO SYSTEM (Robust with crash handling) =====
     const Audio = {
@@ -623,6 +712,7 @@
         lfo: null,
         isRunning: false,
         isInitialized: false,
+        fadeOutTimeout: null,  // Track fade timeout to prevent race conditions
 
         init() {
             if (this.ctx) return;
@@ -715,22 +805,63 @@
             this.isRunning = false;
             const now = this.ctx.currentTime;
             
-            // Immediate stop - no delay
-            this.rotorGain.gain.cancelScheduledValues(now);
-            this.rotorGain.gain.setValueAtTime(0, now);
+            // Cancel fade timeout if pending
+            if (this.fadeOutTimeout) {
+                clearTimeout(this.fadeOutTimeout);
+                this.fadeOutTimeout = null;
+            }
+            
+            // Cancel all scheduled values and stop immediately
+            if (this.rotorGain) {
+                this.rotorGain.gain.cancelScheduledValues(now);
+                this.rotorGain.gain.setValueAtTime(0, now);
+            }
+            
+            // Also stop LFO modulation to ensure complete silence
+            if (this.lfo) {
+                this.lfo.frequency.cancelScheduledValues(now);
+                this.lfo.frequency.setValueAtTime(0, now);
+            }
+            
+            GameDebug.log('AUDIO', 'Rotor sound stopped completely');
         },
 
-        // Quick fade out for crash
+        // Quick fade out for crash - with guaranteed stop
         fadeOut() {
             if (!this.isInitialized || !this.ctx) return;
             
             this.isRunning = false;
             const now = this.ctx.currentTime;
-            const currentVal = this.rotorGain.gain.value;
+            const fadeTime = CONFIG.audio.fadeOutTime;
             
-            this.rotorGain.gain.cancelScheduledValues(now);
-            this.rotorGain.gain.setValueAtTime(currentVal, now);
-            this.rotorGain.gain.linearRampToValueAtTime(0, now + CONFIG.audio.fadeOutTime);
+            // Clear any existing fade timeout to prevent race conditions
+            if (this.fadeOutTimeout) {
+                clearTimeout(this.fadeOutTimeout);
+                this.fadeOutTimeout = null;
+            }
+            
+            // Cancel any scheduled changes and ramp down gain
+            if (this.rotorGain) {
+                this.rotorGain.gain.cancelScheduledValues(now);
+                const currentGain = this.rotorGain.gain.value;
+                this.rotorGain.gain.setValueAtTime(currentGain, now);
+                this.rotorGain.gain.linearRampToValueAtTime(0, now + fadeTime);
+            }
+            
+            // Also ramp down LFO frequency for smooth fade
+            if (this.lfo) {
+                this.lfo.frequency.cancelScheduledValues(now);
+                this.lfo.frequency.setValueAtTime(this.lfo.frequency.value, now);
+                this.lfo.frequency.linearRampToValueAtTime(0, now + fadeTime);
+            }
+            
+            // Schedule complete stop after fade completes
+            this.fadeOutTimeout = setTimeout(() => {
+                this.fadeOutTimeout = null;
+                this.stop();
+            }, fadeTime * 1000 + 50);  // Add 50ms buffer
+            
+            GameDebug.log('AUDIO', 'Rotor sound fading out', { fadeTime });
         },
 
         setMuted(muted) {
@@ -807,8 +938,15 @@
     function resize() {
         width = window.innerWidth;
         height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
+        
+        // Set canvas size accounting for device pixel ratio (for crisp rendering)
+        canvas.width = width * pixelRatio;
+        canvas.height = height * pixelRatio;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        
+        // Scale context to match pixel ratio
+        ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
         
         if (state === 'MENU') {
             helicopter.x = width * 0.25;
@@ -816,6 +954,12 @@
             initDust();
             initStars();
         }
+        
+        GameDebug.log('RESIZE', 'Canvas resized', { 
+            width, height, pixelRatio,
+            canvasWidth: canvas.width, 
+            canvasHeight: canvas.height 
+        });
     }
     
     window.addEventListener('resize', resize);
@@ -922,8 +1066,16 @@
     }
 
     function handlePointerDown(e) {
-        if (e.type === 'touchstart') e.preventDefault();
-        if (e.target.tagName === 'BUTTON') return;
+        // Check if target is a button or inside a button - allow native behavior
+        if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+            return; // Don't prevent default, let the button handle it
+        }
+        
+        // Only prevent default for gameplay touches (not menu/button interactions)
+        if (e.type === 'touchstart' && state === 'PLAYING') {
+            e.preventDefault();
+        }
+        
         if (state !== 'PLAYING') return;
         
         pointerDown = true;
@@ -998,10 +1150,17 @@
     // Event listeners
     container.addEventListener('touchstart', handlePointerDown, { passive: false });
     window.addEventListener('touchend', handlePointerUp);
+    window.addEventListener('touchcancel', handlePointerUp); // Handle interrupted touches
     window.addEventListener('mousedown', handlePointerDown);
     window.addEventListener('mouseup', handlePointerUp);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    
+    // Prevent context menu on long press (mobile)
+    container.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        return false;
+    });
 
     // ===== GAME FUNCTIONS =====
     function pauseGame() {
@@ -1042,6 +1201,8 @@
         shake.intensity = 0;
         particles = [];
         birds = [];
+        dragons = [];  // Reset dragons
+        difficultyLevel = 1;  // Reset difficulty
         
         // Generate terrain
         terrain = [];
@@ -1099,12 +1260,40 @@
         });
     }
 
+    // Dragon spawning - larger, more dangerous obstacle
+    function spawnDragon() {
+        const y = Math.random() * (height - 200) + 100;
+        dragons.push({
+            x: width + 60,
+            y: y,
+            vx: -(scrollSpeed + 40 + Math.random() * 40),  // Slightly slower than birds
+            vy: (Math.random() - 0.5) * 60,  // Slight vertical movement
+            wingPhase: Math.random() * Math.PI * 2,
+            wingSpeed: 0.08 + Math.random() * 0.04,
+            breathPhase: Math.random() * Math.PI * 2,
+            size: 1.2 + Math.random() * 0.4  // Size variation
+        });
+    }
+
     function update(dt) {
         // Cap delta time
         dt = Math.min(dt, CONFIG.maxDeltaTime);
         
         distance += scrollSpeed * dt;
         scrollSpeed += CONFIG.speedInc * dt;
+        
+        // Update difficulty level based on distance (using display distance units)
+        const displayDistance = distance / DIFFICULTY.distanceScale;
+        const newLevel = Math.min(
+            Math.floor(displayDistance / DIFFICULTY.levelUpDistance) + 1,
+            DIFFICULTY.maxLevel
+        );
+        if (newLevel > difficultyLevel) {
+            difficultyLevel = newLevel;
+            // Increase scroll speed with each level
+            scrollSpeed += DIFFICULTY.speedIncreasePerLevel * scrollSpeed;
+            GameDebug.log('GAME', 'Level up!', { level: difficultyLevel, speed: scrollSpeed });
+        }
 
         // Physics
         if (inputActive) {
@@ -1160,8 +1349,9 @@
             terrain.shift();
         }
 
-        // Birds
-        if (Math.random() < (0.0025 + scrollSpeed * 0.000015) * dt * 60) {
+        // Birds - spawn rate increases with difficulty
+        const birdSpawnRate = (DIFFICULTY.birdSpawnBase + DIFFICULTY.birdSpawnPerLevel * difficultyLevel + scrollSpeed * 0.000015) * dt * 60;
+        if (Math.random() < birdSpawnRate) {
             spawnBird();
         }
         
@@ -1171,10 +1361,37 @@
             
             // Collision
             if (Math.abs(helicopter.x - bird.x) < 22 && Math.abs(helicopter.y - bird.y) < 18) {
-                gameOver(true);
+                gameOver('bird');
             }
         });
         birds = birds.filter(b => b.x > -50);
+
+        // Dragons - spawn after level 2, rate increases with difficulty
+        if (difficultyLevel >= 2) {
+            const dragonSpawnRate = (DIFFICULTY.dragonSpawnBase + DIFFICULTY.dragonSpawnPerLevel * (difficultyLevel - 1)) * dt * 60;
+            if (Math.random() < dragonSpawnRate) {
+                spawnDragon();
+            }
+        }
+        
+        dragons.forEach(dragon => {
+            dragon.x += dragon.vx * dt;
+            dragon.y += dragon.vy * dt;
+            dragon.wingPhase += dragon.wingSpeed;
+            dragon.breathPhase += 0.05;
+            
+            // Bounce off top/bottom bounds
+            if (dragon.y < 80 || dragon.y > height - 80) {
+                dragon.vy *= -1;
+            }
+            
+            // Collision (larger hitbox for dragons)
+            const hitboxSize = 28 * dragon.size;
+            if (Math.abs(helicopter.x - dragon.x) < hitboxSize && Math.abs(helicopter.y - dragon.y) < hitboxSize) {
+                gameOver('dragon');
+            }
+        });
+        dragons = dragons.filter(d => d.x > -80);
 
         // Terrain collision
         const heliIndex = Math.floor(helicopter.x / CONFIG.segmentWidth);
@@ -1183,12 +1400,12 @@
             const floor = height - terrain[heliIndex].bottom;
             
             if (helicopter.y - helicopter.radius < ceiling || helicopter.y + helicopter.radius > floor) {
-                gameOver(false);
+                gameOver('terrain');
             }
         }
         
         if (helicopter.y < 0 || helicopter.y > height) {
-            gameOver(false);
+            gameOver('terrain');
         }
 
         // Update particles
@@ -1211,9 +1428,9 @@
         elDist.innerText = String(Math.floor(distance / 10)).padStart(4, '0');
     }
 
-    function gameOver(isBird) {
+    function gameOver(cause) {
         state = 'CRASHED';
-        shake.intensity = 22;
+        shake.intensity = cause === 'dragon' ? 30 : 22;  // Dragons cause bigger shake
         inputActive = false;
         pointerDown = false;
         keysPressed.up = false;
@@ -1222,9 +1439,19 @@
 
         // Debug tracking
         const finalDistance = Math.floor(distance / 10);
+        
+        // Map cause to display text
+        const causeText = {
+            'bird': 'BIRD STRIKE',
+            'dragon': 'DRAGON ATTACK',
+            'terrain': 'TERRAIN IMPACT'
+        };
+        const causeDisplay = causeText[cause] || 'UNKNOWN';
+        
         GameDebug.trackGameEvent('CRASH', {
-            cause: isBird ? 'BIRD_STRIKE' : 'TERRAIN_IMPACT',
+            cause: causeDisplay,
             distance: finalDistance,
+            level: difficultyLevel,
             avgFps: GameDebug.metrics.avgFps,
             position: { x: helicopter.x, y: helicopter.y }
         });
@@ -1233,9 +1460,9 @@
         // CRITICAL: Stop sound immediately on crash
         Audio.fadeOut();
         Audio.playExplosion();
-        if (isBird) Audio.playBirdHit();
+        if (cause === 'bird' || cause === 'dragon') Audio.playBirdHit();
 
-        elSys.innerText = isBird ? "BIRD STRIKE" : "IMPACT";
+        elSys.innerText = causeDisplay;
         elSys.style.color = "var(--alert)";
 
         setTimeout(() => {
@@ -1244,7 +1471,7 @@
             
             title.innerText = "MISSION FAILED";
             title.style.color = "var(--alert)";
-            desc.innerHTML = `DISTANCE: ${Math.floor(distance / 10)}<br>CAUSE: ${isBird ? "BIRD STRIKE" : "TERRAIN IMPACT"}<br><br>TAP OR PRESS ENTER TO RESTART`;
+            desc.innerHTML = `DISTANCE: ${finalDistance}<br>LEVEL: ${difficultyLevel}<br>CAUSE: ${causeDisplay}<br><br>TAP OR PRESS ENTER TO RESTART`;
             btnStart.innerText = "REBOOT SYSTEM";
             menu.classList.remove('hidden');
             
@@ -1342,6 +1569,96 @@
             ctx.stroke();
         });
 
+        // Dragons - vector style matching site aesthetics
+        dragons.forEach(d => {
+            const wingY = Math.sin(d.wingPhase) * 12 * d.size;
+            const breathGlow = Math.sin(d.breathPhase) * 0.3 + 0.7;
+            const s = d.size;
+            
+            ctx.save();
+            ctx.translate(d.x, d.y);
+            
+            // Dragon body glow
+            ctx.shadowColor = '#ff3333';
+            ctx.shadowBlur = 15 * s;
+            ctx.strokeStyle = `rgba(255, 51, 51, ${breathGlow})`;
+            ctx.lineWidth = 3 * s;
+            
+            // Body - serpentine shape
+            ctx.beginPath();
+            ctx.moveTo(25 * s, 0);
+            ctx.quadraticCurveTo(15 * s, -8 * s, 0, 0);
+            ctx.quadraticCurveTo(-15 * s, 8 * s, -30 * s, 0);
+            ctx.stroke();
+            
+            // Head
+            ctx.beginPath();
+            ctx.moveTo(25 * s, 0);
+            ctx.lineTo(35 * s, -5 * s);
+            ctx.lineTo(40 * s, 0);
+            ctx.lineTo(35 * s, 5 * s);
+            ctx.lineTo(25 * s, 0);
+            ctx.stroke();
+            
+            // Eye (glowing)
+            ctx.fillStyle = '#39ff14';
+            ctx.shadowColor = '#39ff14';
+            ctx.beginPath();
+            ctx.arc(32 * s, -1 * s, 2 * s, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Wings
+            ctx.strokeStyle = `rgba(255, 136, 68, ${breathGlow})`;
+            ctx.shadowColor = '#ff8844';
+            ctx.lineWidth = 2 * s;
+            
+            // Upper wing
+            ctx.beginPath();
+            ctx.moveTo(5 * s, -3 * s);
+            ctx.lineTo(0, -20 * s + wingY);
+            ctx.lineTo(-15 * s, -10 * s + wingY * 0.5);
+            ctx.stroke();
+            
+            // Lower wing
+            ctx.beginPath();
+            ctx.moveTo(5 * s, 3 * s);
+            ctx.lineTo(0, 20 * s - wingY);
+            ctx.lineTo(-15 * s, 10 * s - wingY * 0.5);
+            ctx.stroke();
+            
+            // Tail spikes
+            ctx.strokeStyle = '#ff3333';
+            ctx.beginPath();
+            ctx.moveTo(-30 * s, 0);
+            ctx.lineTo(-35 * s, -8 * s);
+            ctx.moveTo(-30 * s, 0);
+            ctx.lineTo(-40 * s, 0);
+            ctx.moveTo(-30 * s, 0);
+            ctx.lineTo(-35 * s, 8 * s);
+            ctx.stroke();
+            
+            // Fire breath (when dragon is past fire threshold on screen and breath cycle is active)
+            if (d.x < width * DIFFICULTY.dragonFireThreshold && Math.sin(d.breathPhase * 3) > DIFFICULTY.dragonFireFrequency) {
+                // Pre-calculate flame offsets for this frame (reduces random calls)
+                const flameOffset1 = Math.sin(d.breathPhase * 7) * 10;
+                const flameOffset2 = Math.cos(d.breathPhase * 5) * 15;
+                const flameOffset3 = Math.sin(d.breathPhase * 9) * 10;
+                
+                ctx.fillStyle = `rgba(255, 136, 68, ${breathGlow * 0.6})`;
+                ctx.shadowColor = '#ff8844';
+                ctx.shadowBlur = 20;
+                ctx.beginPath();
+                ctx.moveTo(40 * s, 0);
+                ctx.lineTo(55 * s + flameOffset1, -5 * s);
+                ctx.lineTo(60 * s + flameOffset2, 0);
+                ctx.lineTo(55 * s + flameOffset3, 5 * s);
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            ctx.restore();
+        });
+
         // Particles
         ctx.shadowBlur = 4;
         ctx.shadowColor = '#39ff14';
@@ -1411,24 +1728,51 @@
         ctx.restore();
     }
 
-    // ===== MAIN LOOP (60 FPS) =====
+    // ===== MAIN LOOP (Optimized for all refresh rates: 60Hz, 90Hz, 120Hz, 144Hz) =====
+    let lastRenderTime = 0;
+    let detectedRefreshRate = 60;  // Default assumption
+    let refreshRateFrames = [];
+    
     function gameLoop(currentTime) {
-        // FPS calculation
+        // FPS calculation - accurately shows actual frame rate
         frameCount++;
         if (currentTime - lastFpsUpdate >= 1000) {
             currentFps = frameCount;
+            
+            // Detect display refresh rate from actual FPS
+            if (currentFps > 55) {
+                if (currentFps >= 115) {
+                    detectedRefreshRate = 120;
+                } else if (currentFps >= 85) {
+                    detectedRefreshRate = 90;
+                } else {
+                    detectedRefreshRate = 60;
+                }
+            }
+            
             elFps.innerText = currentFps;
-            GameDebug.trackFps(currentFps); // Track FPS for debugging
+            GameDebug.trackFps(currentFps);
+            GameDebug.log('PERFORMANCE', 'Frame rate update', { 
+                fps: currentFps, 
+                detectedRefreshRate 
+            });
             frameCount = 0;
             lastFpsUpdate = currentTime;
         }
 
-        // Delta time
+        // Delta time calculation with smoothing for high refresh rates
         if (!lastFrameTime) lastFrameTime = currentTime;
-        const deltaTime = (currentTime - lastFrameTime) / 1000;
+        let deltaTime = (currentTime - lastFrameTime) / 1000;
         lastFrameTime = currentTime;
+        
+        // Cap delta time for consistent physics (prevents jumps on tab switch)
+        deltaTime = Math.min(deltaTime, CONFIG.maxDeltaTime);
+        
+        // Ensure minimum delta for very high refresh rates (prevents micro-stuttering)
+        // This ensures smooth gameplay on 120Hz+ displays
+        if (deltaTime < 0.001) deltaTime = 0.001;
 
-        // Update
+        // Update game state
         if (state === 'PLAYING') {
             update(deltaTime);
         } else if (state === 'MENU' || state === 'PAUSED') {
@@ -1439,6 +1783,7 @@
         // Render
         draw();
 
+        // Use requestAnimationFrame for native refresh rate support
         requestAnimationFrame(gameLoop);
     }
 
@@ -1448,10 +1793,28 @@
         initDust();
         initStars();
         
-        btnStart.addEventListener('click', () => {
-            if (state === 'PAUSED') resumeGame();
-            else resetGame();
-        });
+        // Button handler function
+        function handleButtonAction(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (!canRestart && state === 'MENU') return;
+            
+            if (state === 'PAUSED') {
+                resumeGame();
+            } else {
+                resetGame();
+            }
+        }
+        
+        // Add both click and touch handlers for robust mobile support
+        btnStart.addEventListener('click', handleButtonAction);
+        btnStart.addEventListener('touchend', handleButtonAction, { passive: false });
+        
+        // Prevent touchstart from triggering other handlers
+        btnStart.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+        }, { passive: true });
 
         // Debug key handler (press D for debug report)
         window.addEventListener('keydown', (e) => {

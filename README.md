@@ -1,26 +1,22 @@
 # Vector Chopper 3D
 
-A retro-style 3D helicopter game with vector graphics, floaty physics, and full mobile support. Navigate through procedurally generated terrain while avoiding obstacles and birds!
+A retro-style 3D helicopter game with vector graphics, floaty physics, and full mobile support. Navigate through procedurally generated terrain while avoiding obstacles, birds, and dragons!
 
 ## 🎮 Play Now
 **[Play Vector Chopper](https://anacondy.github.io/3-Heli-24/)**
 
 ## Screenshots
 
-### Main Menu (Desktop)
-![Main Menu](https://github.com/user-attachments/assets/0e7b5986-c19d-4d01-9ae8-13796f4b1eab)
+### Desktop 16:9 - Main Menu
+![Desktop Main Menu](https://github.com/user-attachments/assets/1cca38ea-6fd9-48cc-b00e-b69d39fb0b52)
 
-### Game Over Screen
-![Game Over](https://github.com/user-attachments/assets/f2191d45-c765-4311-9a13-b7bab1495c72)
+### Desktop 16:9 - Game Over Screen (with Level Display)
+![Desktop Game Over](https://github.com/user-attachments/assets/63cb66fe-385d-4ba4-a23d-8adad18b88a6)
 
-### Mobile 16:9 (Portrait)
-![Mobile 16:9](https://github.com/user-attachments/assets/c08c8a70-4f0e-493b-b2d6-2b32f1a64cb5)
+### Desktop 16:9 - Gameplay
+![Desktop Gameplay](https://github.com/user-attachments/assets/196f8869-a0b5-49ef-885b-9fa9c321a4c9)
 
-### Mobile 20:9 (Portrait)
-![Mobile 20:9](https://github.com/user-attachments/assets/4ca5c535-63aa-4e65-8fa2-0d591cf45ec4)
-
-### Mobile Landscape
-![Mobile Landscape](https://github.com/user-attachments/assets/b9ed5e35-d8ea-4c98-b41f-45f685321da9)
+> **Note:** Mobile devices are required to play in **landscape mode only**. When accessing the game in portrait mode on mobile, a "Rotate Your Device" overlay will appear prompting users to rotate their device for the best experience.
 
 ## ✨ Features
 
@@ -30,33 +26,38 @@ A retro-style 3D helicopter game with vector graphics, floaty physics, and full 
 - ✨ Particle effects and glow shaders
 - 📺 Retro scanline overlay for authentic vector feel
 - 💥 Screen shake on crash for impact feedback
+- 🐉 **Dragon obstacles** with animated wings and fire breath
 
 ### Mobile Support
 - 📱 **Fully responsive** design for all screen sizes
-- 📐 Optimized for **16:9** and **20:9** aspect ratios
+- 📐 Optimized for **16:9** and **20:9** aspect ratios in landscape
 - 👆 Touch-friendly controls with visual feedback
 - 🔒 Safe area support for notched devices (iPhone X+, Android)
-- 🖥️ Landscape and portrait orientation support
+- 🖥️ **Enforced landscape orientation** - portrait mode is blocked with overlay
+- 📲 "Rotate Your Device" overlay prompts users to rotate to landscape
 
 ### Performance
-- ⚡ **Consistent 60 FPS** with delta-time physics
-- 🎯 Frame rate limiting to prevent physics issues
+- ⚡ **Supports 60Hz, 90Hz, 120Hz, and 144Hz** displays
+- 🎯 Runs at native display refresh rate
 - 📊 Real-time FPS counter in HUD
-- 🔧 Optimized rendering pipeline
+- 🔧 Delta-time physics for consistent gameplay at any frame rate
+- 🖼️ High DPI display support with device pixel ratio optimization
 
 ### Audio
 - 🎵 Dynamic rotor sound with throttle response
 - 💥 Explosion sound effects
 - 🐦 Bird strike audio feedback
-- 🔇 **Audio stops immediately** on crash
+- 🔇 **Audio fades out smoothly** on crash (0.4s fade effect)
 - 🔊 Mute/unmute with visual feedback
 
 ### Gameplay
 - 🚁 Floaty helicopter physics
 - 🌄 Procedurally generated terrain
 - 🐦 Birds as dynamic obstacles
+- 🐉 **Dragons** spawn at Level 2+ with fire breath attacks
+- 📈 **Progressive difficulty** system (up to Level 10)
 - ⏸️ Pause/resume functionality
-- 📈 Distance scoring system
+- 🏆 Distance scoring with level display
 
 ## 🎮 Controls
 
@@ -97,6 +98,16 @@ This game is automatically tested, updated, and deployed via GitHub Actions:
 See `TEST_REPORT.md` for the latest test results.
 
 ## 🔄 Version History
+
+### v2.1.0 - Dragons & Difficulty Update
+- 🐉 Added **dragon obstacles** with animated wings and fire breath
+- 📈 **Progressive difficulty system** - game gets harder over time (up to Level 10)
+- 🖥️ **Landscape-only mode** for mobile devices
+- ⚡ **High refresh rate support** (60Hz, 90Hz, 120Hz, 144Hz)
+- 🔇 **Audio fade effect** on crash - rotor sound smoothly fades out
+- 📱 Fixed mobile touch issues for "Engage Rotors" button
+- 🎮 Level display added to game over screen
+- 🔧 Optimized delta-time physics for all frame rates
 
 ### v2.0.0 - 3D Update
 - Added 3D-style rendering with parallax depth effects
