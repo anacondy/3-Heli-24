@@ -13,14 +13,10 @@ A retro-style 3D helicopter game with vector graphics, floaty physics, and full 
 ### Desktop 16:9 - Game Over Screen (with Level Display)
 ![Desktop Game Over](https://github.com/user-attachments/assets/63cb66fe-385d-4ba4-a23d-8adad18b88a6)
 
-### iPhone / Mobile Portrait - Menu
-![Mobile Portrait Menu](https://github.com/user-attachments/assets/7ea89178-20cb-48af-8cdf-4a5f151cd812)
-
-### Mobile 20:9 - Game Over Screen
-![Mobile 20:9 Game Over](https://github.com/user-attachments/assets/8eadf72e-841a-4126-8a0f-72fe44d3edc2)
-
-### Desktop Gameplay
+### Desktop 16:9 - Gameplay
 ![Desktop Gameplay](https://github.com/user-attachments/assets/196f8869-a0b5-49ef-885b-9fa9c321a4c9)
+
+> **Note:** Mobile devices are required to play in **landscape mode only**. When accessing the game in portrait mode on mobile, a "Rotate Your Device" overlay will appear prompting users to rotate their device for the best experience.
 
 ## ✨ Features
 
@@ -34,11 +30,11 @@ A retro-style 3D helicopter game with vector graphics, floaty physics, and full 
 
 ### Mobile Support
 - 📱 **Fully responsive** design for all screen sizes
-- 📐 Optimized for **16:9** and **20:9** aspect ratios
+- 📐 Optimized for **16:9** and **20:9** aspect ratios in landscape
 - 👆 Touch-friendly controls with visual feedback
 - 🔒 Safe area support for notched devices (iPhone X+, Android)
-- 🖥️ **Landscape-only mode** on mobile for best gameplay experience
-- 📲 "Rotate Your Device" overlay in portrait mode
+- 🖥️ **Landscape-only mode** - game only runs in landscape orientation
+- 📲 "Rotate Your Device" overlay blocks gameplay in portrait mode
 
 ### Performance
 - ⚡ **Supports 60Hz, 90Hz, 120Hz, and 144Hz** displays
