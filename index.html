@@ -2,1843 +2,564 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#050505">
-    <title>VECTOR CHOPPER 3D</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Resilient Chopper</title>
     <style>
-        /* --- CORE STYLING (Mobile Optimized for 16:9 and 20:9) --- */
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-
-        :root {
-            --primary: #39ff14;
-            --alert: #ff3333;
-            --dust: #ff8844;
-            --bg: #050505;
-            /* Safe area insets for notched devices */
-            --sai-top: env(safe-area-inset-top, 0px);
-            --sai-bottom: env(safe-area-inset-bottom, 0px);
-            --sai-left: env(safe-area-inset-left, 0px);
-            --sai-right: env(safe-area-inset-right, 0px);
-        }
-
         * {
-            margin: 0;
-            padding: 0;
             box-sizing: border-box;
-        }
-
-        body, html {
-            width: 100%;
-            height: 100%;
-            background-color: var(--bg);
-            overflow: hidden;
-            font-family: 'Share Tech Mono', monospace, 'Courier New', monospace;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
             user-select: none;
             -webkit-user-select: none;
-            position: fixed;
-            top: 0;
-            left: 0;
+            margin: 0;
+            padding: 0;
         }
-
-        #game-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle at center, #111 0%, #000 100%);
-            outline: none;
-            /* Disable default touch behaviors during gameplay */
-            touch-action: none;
-        }
-
-        canvas {
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            /* 3D-like glow effect */
-            filter: drop-shadow(0 0 2px rgba(57, 255, 20, 0.3));
-            /* Allow touch events to pass through to container */
-            pointer-events: none;
-        }
-
-        /* --- SCANLINES --- */
-        .scanlines {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.12) 50%);
-            background-size: 100% 4px;
-            pointer-events: none;
-            z-index: 10;
-        }
-
-        /* --- UI LAYER (Mobile responsive) --- */
-        #ui-layer {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 20;
-            padding: calc(10px + var(--sai-top)) calc(10px + var(--sai-right)) calc(10px + var(--sai-bottom)) calc(10px + var(--sai-left));
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .hud-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: var(--primary);
-            font-size: clamp(0.65rem, 2.5vw, 1.1rem);
-            text-shadow: 0 0 5px var(--primary);
-            letter-spacing: 1px;
-        }
-
-        /* --- MENU OVERLAY (Mobile responsive) --- */
-        #menu-overlay {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            z-index: 100;
+        body {
+            background-color: #0d0f14;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: calc(15px + var(--sai-top)) calc(15px + var(--sai-right)) calc(15px + var(--sai-bottom)) calc(15px + var(--sai-left));
-            pointer-events: auto;
-            transition: opacity 0.3s ease;
-            /* Enable touch scrolling within menu if needed */
-            touch-action: manipulation;
         }
 
-        h1 {
-            color: var(--dust);
-            font-size: clamp(1.6rem, 7vw, 3.2rem);
-            margin: 0 0 8px 0;
-            text-shadow: 0 0 12px var(--dust);
-            text-align: center;
-            line-height: 1.1;
-        }
-
-        .version-tag {
-            color: var(--primary);
-            font-size: clamp(0.55rem, 1.8vw, 0.75rem);
-            opacity: 0.7;
-            margin-bottom: 12px;
-        }
-
-        p {
-            color: #fff;
-            font-size: clamp(0.65rem, 2.2vw, 0.95rem);
-            opacity: 0.9;
-            margin-bottom: 20px;
-            text-align: center;
-            line-height: 1.5;
-            text-shadow: 0 0 4px var(--dust);
-            max-width: 90%;
-        }
-
-        .btn {
-            background: rgba(50, 20, 0, 0.7);
-            border: 2px solid var(--dust);
-            color: var(--dust);
-            font-family: inherit;
-            font-size: clamp(0.9rem, 3.5vw, 1.4rem);
-            padding: clamp(10px, 2.5vw, 18px) clamp(20px, 7vw, 45px);
-            cursor: pointer;
-            text-transform: uppercase;
-            box-shadow: 0 0 12px var(--dust);
-            transition: transform 0.1s, background 0.1s;
-            pointer-events: auto;
-            border-radius: 4px;
-            min-height: 44px;
-            min-width: 44px;
-            /* Mobile touch optimization */
-            -webkit-tap-highlight-color: rgba(255, 136, 68, 0.3);
-            touch-action: manipulation;
+        /* Glassmorphic Canvas Container */
+        .game-container {
             position: relative;
-            z-index: 110;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16 / 9.6; /* Matches 800x480 logical scale */
+            background: rgba(20, 24, 33, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .btn:active,
-        .btn:focus {
-            background: var(--dust);
-            color: #000;
-            transform: scale(0.95);
-            outline: none;
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: contain;
+        }
+
+        /* Frosted Glass Overlay Screens */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 12, 18, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            transition: opacity 0.25s ease;
         }
 
         .hidden {
             opacity: 0;
-            pointer-events: none !important;
-        }
-
-        /* --- MOBILE TOUCH ZONE --- */
-        #touch-zone {
-            position: absolute;
-            bottom: calc(15px + var(--sai-bottom));
-            right: calc(15px + var(--sai-right));
-            width: clamp(55px, 14vw, 90px);
-            height: clamp(55px, 14vw, 90px);
-            background: rgba(57, 255, 20, 0.12);
-            border: 2px solid rgba(57, 255, 20, 0.35);
-            border-radius: 50%;
-            z-index: 50;
-            pointer-events: auto;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: clamp(0.55rem, 1.8vw, 0.75rem);
-            color: var(--primary);
-            text-align: center;
-            opacity: 0.75;
-        }
-
-        #touch-zone.active {
-            background: rgba(57, 255, 20, 0.35);
-            transform: scale(0.95);
-        }
-
-        /* --- MUTE FEEDBACK --- */
-        #mute-feedback {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: clamp(1.3rem, 4.5vw, 2.2rem);
-            font-weight: bold;
             pointer-events: none;
-            opacity: 0;
-            z-index: 150;
-            text-shadow: 0 0 15px currentColor;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
             letter-spacing: 2px;
+            color: #00f0ff;
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+            margin-bottom: 10px;
         }
 
-        @keyframes muteFeedback {
-            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
-            15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
-        }
-
-        @keyframes unmuteFeedback {
-            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.0); }
-        }
-
-        .mute-feedback-muted {
-            color: var(--alert);
-            animation: muteFeedback 1.3s ease-out forwards;
-        }
-
-        .mute-feedback-unmuted {
-            color: var(--primary);
-            animation: unmuteFeedback 0.9s ease-out forwards;
-        }
-
-        /* --- MOBILE HINT --- */
-        .mobile-hint {
-            display: none;
-            position: absolute;
-            bottom: calc(90px + var(--sai-bottom));
-            left: 50%;
-            transform: translateX(-50%);
-            color: var(--primary);
-            font-size: clamp(0.55rem, 1.8vw, 0.75rem);
-            opacity: 0.5;
+        p {
+            font-size: 1rem;
+            color: #94a3b8;
+            margin-bottom: 24px;
             text-align: center;
-            z-index: 60;
+            padding: 0 20px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #00f0ff 0%, #0072ff 100%);
+            border: none;
+            color: #050508;
+            padding: 14px 32px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(0, 240, 255, 0.3);
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+        }
+
+        /* Smooth Mobile Action Pad Controls */
+        .controls-ui {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
             pointer-events: none;
+            z-index: 5;
         }
 
-        /* Show mobile elements on touch devices */
-        @media (hover: none) and (pointer: coarse) {
-            #touch-zone { display: flex; }
-            .mobile-hint { display: block; }
-        }
-
-        /* Landscape mobile optimization */
-        @media screen and (max-height: 450px) and (orientation: landscape) {
-            h1 {
-                font-size: clamp(1rem, 4.5vh, 1.8rem);
-                margin-bottom: 4px;
-            }
-            p {
-                font-size: clamp(0.55rem, 1.8vh, 0.75rem);
-                margin-bottom: 8px;
-                line-height: 1.3;
-            }
-            .btn {
-                padding: 8px 25px;
-                font-size: clamp(0.75rem, 2.8vh, 0.95rem);
-            }
-            .version-tag { margin-bottom: 4px; }
-        }
-
-        /* Extra tall phones (20:9, 21:9) */
-        @media screen and (min-aspect-ratio: 2/1) {
-            #ui-layer {
-                padding-left: calc(20px + var(--sai-left));
-                padding-right: calc(20px + var(--sai-right));
-            }
-        }
-
-        /* --- PORTRAIT MODE BLOCKER (Mobile only) --- */
-        #rotate-overlay {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(5, 5, 5, 0.98);
-            z-index: 1000;
-            display: none;
-            flex-direction: column;
+        .action-btn {
+            width: 84px;
+            height: 84px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.07);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
             align-items: center;
             justify-content: center;
-            color: var(--dust);
-            text-align: center;
-            padding: 20px;
+            pointer-events: auto;
+            touch-action: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
 
-        #rotate-overlay .rotate-icon {
-            font-size: clamp(3rem, 15vw, 6rem);
-            margin-bottom: 20px;
-            animation: rotatePhone 2s ease-in-out infinite;
+        .action-btn:active {
+            background: rgba(0, 240, 255, 0.2);
+            border-color: #00f0ff;
         }
 
-        #rotate-overlay h2 {
-            font-size: clamp(1.2rem, 5vw, 2rem);
-            margin-bottom: 10px;
-            text-shadow: 0 0 10px var(--dust);
+        .action-btn svg {
+            width: 32px;
+            height: 32px;
+            fill: #e2e8f0;
         }
 
-        #rotate-overlay p {
-            font-size: clamp(0.8rem, 3vw, 1rem);
-            opacity: 0.8;
-            color: var(--primary);
-        }
-
-        @keyframes rotatePhone {
-            0%, 100% { transform: rotate(0deg); }
-            25% { transform: rotate(-15deg); }
-            75% { transform: rotate(15deg); }
-        }
-
-        /* Show rotate overlay on mobile portrait */
-        @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
-            #rotate-overlay { display: flex; }
-            #game-container { filter: blur(10px); pointer-events: none; }
+        /* Show mobile UI only when a touch screen is active or layout requests it */
+        @media (pointer: fine) {
+            .controls-ui {
+                display: none; /* Hide on regular desktop setups with mice */
+            }
         }
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <canvas id="gameCanvas"></canvas>
-    <div class="scanlines"></div>
-    
-    <div id="ui-layer">
-        <div class="hud-row">
-            <span>ALT: <span id="val-alt">0000</span></span>
-            <span id="mute-indicator" style="display: none; color: var(--alert);">🔇</span>
-            <span>DIST: <span id="val-dist">0000</span></span>
+    <div class="game-container">
+        <!-- Canvas Viewport Layout -->
+        <canvas id="gameCanvas" width="800" height="480"></canvas>
+
+        <!-- Menu Screen Overlay -->
+        <div id="menuOverlay" class="overlay">
+            <h1>CHOPPER RUN</h1>
+            <p>Press Spacebar, Up Arrow, or hold the screen Button to fly up.</p>
+            <button class="btn" id="startBtn">START MISSION</button>
         </div>
-        <div class="hud-row">
-            <span>FPS: <span id="val-fps">60</span></span>
-            <span style="font-size: clamp(0.55rem, 1.8vw, 0.75rem)">STATUS: <span id="val-sys">STANDBY</span></span>
+
+        <!-- Game Over Screen Overlay -->
+        <div id="gameOverOverlay" class="overlay hidden">
+            <h1 style="color: #ff3e3e; text-shadow: 0 0 10px rgba(255,62,62,0.4);">MISSION FAILED</h1>
+            <p id="scoreSummary">Score: 0 | Best: 0</p>
+            <button class="btn" id="restartBtn">REDEPLOY</button>
+        </div>
+
+        <!-- Touch Controls UI Elements Layer -->
+        <div class="controls-ui">
+            <div class="action-btn" id="touchThrust">
+                <svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5H7z"/></svg>
+            </div>
         </div>
     </div>
 
-    <div id="touch-zone">TAP<br>FLY</div>
-    <div class="mobile-hint">TAP ANYWHERE TO FLY</div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-    <div id="menu-overlay">
-        <h1 id="menu-title">VECTOR<br>CHOPPER</h1>
-        <div class="version-tag">3D v2.1</div>
-        <p id="menu-desc">
-            TAP/CLICK TO FLY UP<br>
-            W/↑/SPACE: ASCEND • S/↓: DIVE<br>
-            P/ENTER: PAUSE • M: MUTE
-        </p>
-        <button class="btn" id="btn-start">ENGAGE ROTORS</button>
-    </div>
+        // State Tracking Objects
+        const menuOverlay = document.getElementById('menuOverlay');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        const scoreSummary = document.getElementById('scoreSummary');
+        const startBtn = document.getElementById('startBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const touchThrust = document.getElementById('touchThrust');
 
-    <div id="mute-feedback"></div>
-</div>
+        let isThrusting = false;
+        let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER
+        let score = 0;
+        let highScore = 0;
 
-<!-- Portrait Mode Blocker for Mobile -->
-<div id="rotate-overlay" role="dialog" aria-labelledby="rotate-title" aria-describedby="rotate-desc">
-    <div class="rotate-icon" aria-hidden="true">📱↻</div>
-    <h2 id="rotate-title">ROTATE YOUR DEVICE</h2>
-    <p id="rotate-desc">This game plays best in landscape mode</p>
-</div>
+        // Delta Time Tracking variables for variable monitor synchronization
+        let lastTime = 0;
 
-<script>
-/**
- * VECTOR CHOPPER 3D v2.1
- * ----------------------
- * Features:
- * 1. Mobile-optimized for 16:9 and 20:9 devices
- * 2. Consistent 60 FPS with delta-time physics
- * 3. Robust audio handling - sound stops on crash
- * 4. 3D-style graphics with perspective and depth
- * 5. Touch-friendly controls
- * 6. Client-side debugging and diagnostics system
- */
+        // Engine Physics Parameter Values
+        const chopper = {
+            x: 120,
+            y: 200,
+            width: 48,
+            height: 24,
+            velocity: 0,
+            gravity: 1400,    // Scaled per second units
+            thrust: -1600,    // Scaled per second units
+            maxFallSpeed: 500,
+            rotorAngle: 0
+        };
 
-(function() {
-    'use strict';
+        let obstacles = [];
+        const obstacleConfig = {
+            width: 50,
+            gap: 155,
+            speed: 240,       // Distance units leftward per second
+            spawnInterval: 1.8, // Seconds between structural pillars
+            spawnTimer: 0
+        };
 
-    // ===== DEBUG/DIAGNOSTICS SYSTEM =====
-    const GameDebug = {
-        enabled: true,
-        sessionId: Date.now().toString(36) + Math.random().toString(36).substr(2),
-        logs: [],
-        errors: [],
-        metrics: {
-            sessionStart: Date.now(),
-            deviceInfo: null,
-            performanceData: [],
-            crashCount: 0,
-            gamesPlayed: 0,
-            maxDistance: 0,
-            avgFps: 0,
-            fpsReadings: []
-        },
+        // Procedural Audio Engine Config (Web Audio API Subsystem Setup)
+        let audioCtx = null;
+        let engineOsc = null;
+        let engineMod = null;
+        let engineGain = null;
 
-        // Collect device information (privacy-safe - no PII)
-        collectDeviceInfo() {
-            const nav = navigator;
-            const screen = window.screen;
-            
-            this.metrics.deviceInfo = {
-                // Screen info
-                screenWidth: screen.width,
-                screenHeight: screen.height,
-                viewportWidth: window.innerWidth,
-                viewportHeight: window.innerHeight,
-                aspectRatio: (window.innerWidth / window.innerHeight).toFixed(2),
-                pixelRatio: window.devicePixelRatio || 1,
-                orientation: screen.orientation?.type || 'unknown',
-                
-                // Browser info (generic, no fingerprinting)
-                userAgent: nav.userAgent,
-                platform: nav.platform,
-                language: nav.language,
-                cookiesEnabled: nav.cookieEnabled,
-                onLine: nav.onLine,
-                
-                // Performance capabilities
-                hardwareConcurrency: nav.hardwareConcurrency || 'unknown',
-                deviceMemory: nav.deviceMemory || 'unknown',
-                
-                // Touch support
-                touchSupport: 'ontouchstart' in window,
-                maxTouchPoints: nav.maxTouchPoints || 0,
-                
-                // Connection info (if available)
-                connection: nav.connection ? {
-                    effectiveType: nav.connection.effectiveType,
-                    downlink: nav.connection.downlink,
-                    rtt: nav.connection.rtt,
-                    saveData: nav.connection.saveData
-                } : 'unavailable'
-            };
-            
-            this.log('DEVICE', 'Device info collected', this.metrics.deviceInfo);
-        },
-
-        // Log events
-        log(category, message, data = null) {
-            if (!this.enabled) return;
-            
-            const entry = {
-                timestamp: Date.now(),
-                category,
-                message,
-                data
-            };
-            
-            this.logs.push(entry);
-            
-            // Keep only last 100 logs
-            if (this.logs.length > 100) {
-                this.logs.shift();
-            }
-            
-            // Console output for developers
-            console.log(`[${category}] ${message}`, data || '');
-        },
-
-        // Track errors
-        trackError(error, context = '') {
-            const errorEntry = {
-                timestamp: Date.now(),
-                message: error.message || String(error),
-                stack: error.stack || '',
-                context,
-                deviceInfo: this.metrics.deviceInfo,
-                gameState: typeof state !== 'undefined' ? state : 'unknown'
-            };
-            
-            this.errors.push(errorEntry);
-            this.log('ERROR', `${context}: ${error.message}`, errorEntry);
-            
-            console.error(`[GAME ERROR] ${context}:`, error);
-        },
-
-        // Track FPS
-        trackFps(fps) {
-            this.metrics.fpsReadings.push(fps);
-            
-            // Keep last 60 readings (1 minute at 1/sec)
-            if (this.metrics.fpsReadings.length > 60) {
-                this.metrics.fpsReadings.shift();
-            }
-            
-            // Calculate average
-            const sum = this.metrics.fpsReadings.reduce((a, b) => a + b, 0);
-            this.metrics.avgFps = Math.round(sum / this.metrics.fpsReadings.length);
-        },
-
-        // Track game events
-        trackGameEvent(event, data = {}) {
-            this.log('GAME', event, data);
-            
-            switch(event) {
-                case 'GAME_START':
-                    this.metrics.gamesPlayed++;
-                    break;
-                case 'CRASH':
-                    this.metrics.crashCount++;
-                    break;
-                case 'DISTANCE':
-                    if (data.distance > this.metrics.maxDistance) {
-                        this.metrics.maxDistance = data.distance;
-                    }
-                    break;
-            }
-        },
-
-        // Get diagnostics report
-        getReport() {
-            return {
-                sessionId: this.sessionId,
-                sessionDuration: Date.now() - this.metrics.sessionStart,
-                device: this.metrics.deviceInfo,
-                performance: {
-                    avgFps: this.metrics.avgFps,
-                    currentFps: this.metrics.fpsReadings[this.metrics.fpsReadings.length - 1] || 0
-                },
-                gameplay: {
-                    gamesPlayed: this.metrics.gamesPlayed,
-                    crashCount: this.metrics.crashCount,
-                    maxDistance: this.metrics.maxDistance
-                },
-                errors: this.errors.slice(-10), // Last 10 errors
-                recentLogs: this.logs.slice(-20) // Last 20 logs
-            };
-        },
-
-        // Display debug info in console (press D key)
-        showDebugConsole() {
-            const report = this.getReport();
-            console.group('🚁 VECTOR CHOPPER DEBUG REPORT');
-            console.log('Session ID:', report.sessionId);
-            console.log('Session Duration:', Math.round(report.sessionDuration / 1000) + 's');
-            console.table(report.device);
-            console.log('Performance:', report.performance);
-            console.log('Gameplay Stats:', report.gameplay);
-            if (report.errors.length > 0) {
-                console.warn('Errors:', report.errors);
-            }
-            console.groupEnd();
-            
-            return report;
-        },
-
-        // Initialize
-        init() {
-            this.collectDeviceInfo();
-            this.log('SYSTEM', 'Debug system initialized', { sessionId: this.sessionId });
-            
-            // Global error handler
-            window.onerror = (msg, url, line, col, error) => {
-                this.trackError(error || new Error(msg), `Global error at ${url}:${line}:${col}`);
-                return false;
-            };
-            
-            // Unhandled promise rejection handler
-            window.onunhandledrejection = (event) => {
-                this.trackError(event.reason, 'Unhandled Promise rejection');
-            };
-            
-            // Track visibility changes
-            document.addEventListener('visibilitychange', () => {
-                this.log('SYSTEM', 'Visibility changed', { hidden: document.hidden });
-            });
-            
-            // Track online/offline
-            window.addEventListener('online', () => this.log('NETWORK', 'Back online'));
-            window.addEventListener('offline', () => this.log('NETWORK', 'Gone offline'));
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
-    };
 
-    // Initialize debug system
-    GameDebug.init();
+        function startEngineAudio() {
+            initAudio();
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
 
-    // ===== CONFIGURATION =====
-    const CONFIG = {
-        // Physics (delta-time based)
-        gravity: 380,           // pixels per second² - downward acceleration
-        thrust: 580,            // pixels per second² - upward acceleration when flying
-        terminalVel: 280,       // pixels per second - maximum fall speed
-        maxRiseVel: 240,        // pixels per second - maximum rise speed
-        speedStart: 180,        // pixels per second - initial scroll speed
-        speedInc: 0.8,          // pixels per second² - scroll acceleration
-        
-        // Terrain
-        segmentWidth: 35,       // pixels - width of each terrain segment
-        terrainBuffer: 55,      // segments ahead to generate
-        minGap: 160,            // pixels - minimum vertical passage
-        
-        // Performance
-        targetFPS: 60,          // target frame rate
-        maxDeltaTime: 0.05,     // seconds - cap to prevent physics issues
-        
-        // Audio parameters
-        audio: {
-            rotorIdleGain: 0.18,    // rotor volume when coasting
-            rotorActiveGain: 0.32,  // rotor volume when thrusting
-            lfoIdleFreq: 8,         // Hz - rotor chop frequency idle
-            lfoActiveFreq: 13,      // Hz - rotor chop frequency active
-            fadeInTime: 0.4,        // seconds - rotor start fade in
-            fadeOutTime: 0.4,       // seconds - crash fade out (longer for noticeable effect)
-            throttleAttack: 0.08,   // seconds - throttle response time
-            throttleRelease: 0.25   // seconds - throttle release time
-        }
-    };
-
-    // ===== DOM ELEMENTS =====
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d', { 
-        alpha: false,  // Disable alpha for better performance
-        desynchronized: true  // Enable low-latency rendering on supported devices
-    });
-    const container = document.getElementById('game-container');
-    const menu = document.getElementById('menu-overlay');
-    const btnStart = document.getElementById('btn-start');
-    const title = document.getElementById('menu-title');
-    const desc = document.getElementById('menu-desc');
-    const touchZone = document.getElementById('touch-zone');
-    
-    const elAlt = document.getElementById('val-alt');
-    const elDist = document.getElementById('val-dist');
-    const elSys = document.getElementById('val-sys');
-    const elFps = document.getElementById('val-fps');
-    const elMute = document.getElementById('mute-indicator');
-    const elMuteFeedback = document.getElementById('mute-feedback');
-
-    // Device pixel ratio for high DPI displays (capped for performance)
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-
-    // ===== GAME STATE =====
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    let state = 'MENU';
-    let inputActive = false;
-    let distance = 0;
-    let scrollSpeed = 0;
-    let canRestart = true;
-    let isMuted = false;
-    
-    // FPS tracking
-    let frameCount = 0;
-    let lastFpsUpdate = 0;
-    let currentFps = 60;
-    let lastFrameTime = 0;
-
-    // Input tracking
-    let pointerDown = false;
-    const keysPressed = { up: false, down: false };
-
-    // ===== ENTITIES =====
-    const helicopter = {
-        x: 0, y: 0,
-        velocityY: 0,
-        angle: 0,
-        radius: 14,
-        rotorAngle: 0
-    };
-
-    let terrain = [];
-    let particles = [];
-    let dustParticles = [];
-    let birds = [];
-    let dragons = [];  // New dragon obstacles
-    let stars = [];
-    let shake = { x: 0, y: 0, intensity: 0 };
-    
-    // Difficulty scaling
-    let difficultyLevel = 1;
-    const DIFFICULTY = {
-        birdSpawnBase: 0.0025,
-        birdSpawnPerLevel: 0.0008,
-        dragonSpawnBase: 0.0008,
-        dragonSpawnPerLevel: 0.0004,
-        speedIncreasePerLevel: 0.15,
-        levelUpDistance: 500,  // Distance units (distance/10) to level up
-        maxLevel: 10,
-        distanceScale: 10,     // Divisor for converting raw distance to display distance
-        dragonFireThreshold: 0.6,  // Screen position (0-1) where dragons start breathing fire
-        dragonFireFrequency: 0.5   // Threshold for fire breath animation cycle
-    };
-
-    // ===== AUDIO SYSTEM (Robust with crash handling) =====
-    const Audio = {
-        ctx: null,
-        rotorNode: null,
-        rotorGain: null,
-        masterGain: null,
-        lfo: null,
-        isRunning: false,
-        isInitialized: false,
-        fadeOutTimeout: null,  // Track fade timeout to prevent race conditions
-
-        init() {
-            if (this.ctx) return;
-            
             try {
-                const AC = window.AudioContext || window.webkitAudioContext;
-                if (!AC) return;
-                
-                this.ctx = new AC();
-                
-                // Master gain for global muting
-                this.masterGain = this.ctx.createGain();
-                this.masterGain.connect(this.ctx.destination);
-                this.masterGain.gain.value = isMuted ? 0 : 1;
-                
-                // Pink noise for rotor sound
-                const bufferSize = this.ctx.sampleRate * 2;
-                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-                const data = buffer.getChannelData(0);
-                let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
-                
-                for (let i = 0; i < bufferSize; i++) {
-                    const white = Math.random() * 2 - 1;
-                    b0 = 0.99886 * b0 + white * 0.0555179;
-                    b1 = 0.99332 * b1 + white * 0.0750759;
-                    b2 = 0.96900 * b2 + white * 0.1538520;
-                    b3 = 0.86650 * b3 + white * 0.3104856;
-                    b4 = 0.55000 * b4 + white * 0.5329522;
-                    b5 = -0.7616 * b5 - white * 0.0168980;
-                    data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
-                    b6 = white * 0.115926;
-                }
+                // Main low engine rumbling core
+                engineOsc = audioCtx.createOscillator();
+                engineOsc.type = 'sawtooth';
+                engineOsc.frequency.setValueAtTime(22, audioCtx.currentTime);
 
-                this.rotorNode = this.ctx.createBufferSource();
-                this.rotorNode.buffer = buffer;
-                this.rotorNode.loop = true;
+                // Rotor chopping effect frequency modifier node
+                engineMod = audioCtx.createOscillator();
+                engineMod.type = 'sine';
+                engineMod.frequency.setValueAtTime(11, audioCtx.currentTime); 
 
-                const filter = this.ctx.createBiquadFilter();
+                const modGain = audioCtx.createGain();
+                modGain.gain.setValueAtTime(15, audioCtx.currentTime);
+
+                // Low-pass filter node configuration
+                const filter = audioCtx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 600;
+                filter.frequency.setValueAtTime(160, audioCtx.currentTime);
 
-                this.rotorGain = this.ctx.createGain();
-                this.rotorGain.gain.value = 0;
+                engineGain = audioCtx.createGain();
+                engineGain.gain.setValueAtTime(0.25, audioCtx.currentTime);
 
-                // LFO for chopping sound
-                this.lfo = this.ctx.createOscillator();
-                this.lfo.type = 'sine';
-                this.lfo.frequency.value = CONFIG.audio.lfoIdleFreq;
+                // Build Node Architecture Graph Pipeline
+                engineMod.connect(modGain);
+                modGain.connect(engineOsc.frequency);
+                engineOsc.connect(filter);
+                filter.connect(engineGain);
+                engineGain.connect(audioCtx.destination);
 
-                const lfoGain = this.ctx.createGain();
-                lfoGain.gain.value = 0.5;
-
-                // Connect audio graph
-                this.rotorNode.connect(filter);
-                filter.connect(this.rotorGain);
-                this.rotorGain.connect(this.masterGain);
-                this.lfo.connect(lfoGain);
-                lfoGain.connect(this.rotorGain.gain);
-
-                this.rotorNode.start();
-                this.lfo.start();
-                this.isInitialized = true;
-            } catch (e) {
-                console.warn('Audio initialization failed:', e);
-            }
-        },
-
-        start() {
-            if (!this.isInitialized) this.init();
-            if (!this.ctx) return;
-            
-            if (this.ctx.state === 'suspended') {
-                this.ctx.resume();
-            }
-            
-            this.isRunning = true;
-            const now = this.ctx.currentTime;
-            this.rotorGain.gain.cancelScheduledValues(now);
-            this.rotorGain.gain.setValueAtTime(0, now);
-            
-            if (!isMuted) {
-                this.rotorGain.gain.linearRampToValueAtTime(CONFIG.audio.rotorIdleGain, now + CONFIG.audio.fadeInTime);
-            }
-        },
-
-        // CRITICAL: Complete stop - called on crash
-        stop() {
-            if (!this.isInitialized || !this.ctx) return;
-            
-            this.isRunning = false;
-            const now = this.ctx.currentTime;
-            
-            // Cancel fade timeout if pending
-            if (this.fadeOutTimeout) {
-                clearTimeout(this.fadeOutTimeout);
-                this.fadeOutTimeout = null;
-            }
-            
-            // Cancel all scheduled values and stop immediately
-            if (this.rotorGain) {
-                this.rotorGain.gain.cancelScheduledValues(now);
-                this.rotorGain.gain.setValueAtTime(0, now);
-            }
-            
-            // Also stop LFO modulation to ensure complete silence
-            if (this.lfo) {
-                this.lfo.frequency.cancelScheduledValues(now);
-                this.lfo.frequency.setValueAtTime(0, now);
-            }
-            
-            GameDebug.log('AUDIO', 'Rotor sound stopped completely');
-        },
-
-        // Quick fade out for crash - with guaranteed stop
-        fadeOut() {
-            if (!this.isInitialized || !this.ctx) return;
-            
-            this.isRunning = false;
-            const now = this.ctx.currentTime;
-            const fadeTime = CONFIG.audio.fadeOutTime;
-            
-            // Clear any existing fade timeout to prevent race conditions
-            if (this.fadeOutTimeout) {
-                clearTimeout(this.fadeOutTimeout);
-                this.fadeOutTimeout = null;
-            }
-            
-            // Cancel any scheduled changes and ramp down gain
-            if (this.rotorGain) {
-                this.rotorGain.gain.cancelScheduledValues(now);
-                const currentGain = this.rotorGain.gain.value;
-                this.rotorGain.gain.setValueAtTime(currentGain, now);
-                this.rotorGain.gain.linearRampToValueAtTime(0, now + fadeTime);
-            }
-            
-            // Also ramp down LFO frequency for smooth fade
-            if (this.lfo) {
-                this.lfo.frequency.cancelScheduledValues(now);
-                this.lfo.frequency.setValueAtTime(this.lfo.frequency.value, now);
-                this.lfo.frequency.linearRampToValueAtTime(0, now + fadeTime);
-            }
-            
-            // Schedule complete stop after fade completes
-            this.fadeOutTimeout = setTimeout(() => {
-                this.fadeOutTimeout = null;
-                this.stop();
-            }, fadeTime * 1000 + 50);  // Add 50ms buffer
-            
-            GameDebug.log('AUDIO', 'Rotor sound fading out', { fadeTime });
-        },
-
-        setMuted(muted) {
-            isMuted = muted;
-            elMute.style.display = muted ? 'inline' : 'none';
-            
-            // Visual feedback
-            elMuteFeedback.textContent = muted ? '🔇 MUTED' : '🔊 UNMUTED';
-            elMuteFeedback.className = muted ? 'mute-feedback-muted' : 'mute-feedback-unmuted';
-            void elMuteFeedback.offsetWidth;
-            elMuteFeedback.className = muted ? 'mute-feedback-muted' : 'mute-feedback-unmuted';
-            
-            if (!this.isInitialized || !this.ctx) return;
-            
-            if (muted) {
-                this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
-            } else {
-                this.masterGain.gain.setValueAtTime(1, this.ctx.currentTime);
-            }
-        },
-
-        throttle(on) {
-            if (!this.isInitialized || !this.ctx || isMuted || !this.isRunning) return;
-            
-            const t = this.ctx.currentTime;
-            const audio = CONFIG.audio;
-            if (on) {
-                this.lfo.frequency.setTargetAtTime(audio.lfoActiveFreq, t, audio.throttleAttack);
-                this.rotorGain.gain.setTargetAtTime(audio.rotorActiveGain, t, audio.throttleAttack);
-            } else {
-                this.lfo.frequency.setTargetAtTime(audio.lfoIdleFreq, t, audio.throttleRelease);
-                this.rotorGain.gain.setTargetAtTime(audio.rotorIdleGain, t, audio.throttleRelease);
-            }
-        },
-
-        playExplosion() {
-            if (!this.isInitialized || !this.ctx || isMuted) return;
-            
-            try {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(100, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(20, this.ctx.currentTime + 0.4);
-                gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
-                osc.connect(gain);
-                gain.connect(this.masterGain);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.5);
-            } catch (e) {}
-        },
-
-        playBirdHit() {
-            if (!this.isInitialized || !this.ctx || isMuted) return;
-            
-            try {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(1400, this.ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(350, this.ctx.currentTime + 0.12);
-                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.18);
-                osc.connect(gain);
-                gain.connect(this.masterGain);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.2);
-            } catch (e) {}
-        }
-    };
-
-    // ===== SCREEN RESIZE =====
-    function resize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
-        
-        // Set canvas size accounting for device pixel ratio (for crisp rendering)
-        canvas.width = width * pixelRatio;
-        canvas.height = height * pixelRatio;
-        canvas.style.width = width + 'px';
-        canvas.style.height = height + 'px';
-        
-        // Scale context to match pixel ratio
-        ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-        
-        if (state === 'MENU') {
-            helicopter.x = width * 0.25;
-            helicopter.y = height * 0.5;
-            initDust();
-            initStars();
-        }
-        
-        GameDebug.log('RESIZE', 'Canvas resized', { 
-            width, height, pixelRatio,
-            canvasWidth: canvas.width, 
-            canvasHeight: canvas.height 
-        });
-    }
-    
-    window.addEventListener('resize', resize);
-    window.addEventListener('orientationchange', () => setTimeout(resize, 100));
-
-    // ===== BACKGROUND STARS (3D effect) =====
-    function initStars() {
-        stars = [];
-        const count = Math.min(Math.floor((width * height) / 4000), 120);
-        
-        for (let i = 0; i < count; i++) {
-            stars.push({
-                x: Math.random() * width,
-                y: Math.random() * height,
-                z: Math.random() * 3 + 0.5, // Depth for parallax
-                size: Math.random() * 2 + 0.5,
-                brightness: Math.random() * 0.5 + 0.3
-            });
-        }
-    }
-
-    function updateStars(dt) {
-        const scrollAmount = scrollSpeed * dt;
-        stars.forEach(s => {
-            // Parallax effect - further stars move slower
-            s.x -= scrollAmount / s.z;
-            if (s.x < 0) {
-                s.x = width + 10;
-                s.y = Math.random() * height;
-            }
-        });
-    }
-
-    function drawStars() {
-        stars.forEach(s => {
-            const alpha = s.brightness * (0.7 + Math.sin(Date.now() / 500 + s.x) * 0.3);
-            ctx.fillStyle = `rgba(57, 255, 20, ${alpha})`;
-            ctx.beginPath();
-            ctx.arc(s.x, s.y, s.size / s.z, 0, Math.PI * 2);
-            ctx.fill();
-        });
-    }
-
-    // ===== MENU DUST PARTICLES =====
-    function initDust() {
-        dustParticles = [];
-        const count = Math.min(Math.floor((width * height) / 3500), 70);
-        
-        for (let i = 0; i < count; i++) {
-            dustParticles.push({
-                x: Math.random() * width,
-                y: Math.random() * height,
-                vx: (Math.random() - 0.5) * 0.4,
-                vy: (Math.random() - 0.5) * 0.4,
-                size: Math.random() * 2.5 + 1,
-                phase: Math.random() * Math.PI * 2,
-                speed: Math.random() * 0.025 + 0.008
-            });
-        }
-    }
-
-    function updateDust(dt) {
-        dustParticles.forEach(p => {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.phase += p.speed;
-            
-            if (p.x < 0) p.x = width;
-            if (p.x > width) p.x = 0;
-            if (p.y < 0) p.y = height;
-            if (p.y > height) p.y = 0;
-        });
-    }
-
-    function drawDust() {
-        dustParticles.forEach(p => {
-            const alpha = 0.25 + Math.sin(p.phase) * 0.25;
-            ctx.fillStyle = `rgba(255, 100, 50, ${alpha})`;
-            ctx.shadowBlur = p.size * 1.5;
-            ctx.shadowColor = '#ff5533';
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fill();
-        });
-        ctx.shadowBlur = 0;
-    }
-
-    // ===== INPUT HANDLING =====
-    function updateInputState() {
-        if (state !== 'PLAYING') return;
-        
-        const shouldBeActive = pointerDown || keysPressed.up;
-        
-        if (shouldBeActive !== inputActive) {
-            inputActive = shouldBeActive;
-            Audio.throttle(inputActive);
-            
-            if (inputActive) {
-                touchZone.classList.add('active');
-            } else {
-                touchZone.classList.remove('active');
+                engineOsc.start();
+                engineMod.start();
+            } catch (err) {
+                console.error("Audio Context setup prevented by modern device constraints: ", err);
             }
         }
-    }
 
-    function handlePointerDown(e) {
-        // Check if target is a button or inside a button - allow native behavior
-        if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
-            return; // Don't prevent default, let the button handle it
-        }
-        
-        // Only prevent default for gameplay touches (not menu/button interactions)
-        if (e.type === 'touchstart' && state === 'PLAYING') {
-            e.preventDefault();
-        }
-        
-        if (state !== 'PLAYING') return;
-        
-        pointerDown = true;
-        updateInputState();
-    }
-
-    function handlePointerUp() {
-        pointerDown = false;
-        if (state !== 'PLAYING') return;
-        updateInputState();
-    }
-
-    function handleKeyDown(e) {
-        const key = e.key.toLowerCase();
-        
-        if (key === 'enter') {
-            e.preventDefault();
-            if (state === 'MENU' && canRestart) resetGame();
-            else if (state === 'PLAYING') pauseGame();
-            else if (state === 'PAUSED') resumeGame();
-            return;
+        function updateEngineAudio(thrusting) {
+            if (!engineOsc || !audioCtx) return;
+            // Shift engine sound parameters depending on vertical lift input acceleration 
+            let targetFreq = thrusting ? 26 : 19;
+            let targetGain = thrusting ? 0.38 : 0.22;
+            
+            engineOsc.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.1);
+            engineGain.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.08);
         }
 
-        if (key === 'p') {
-            e.preventDefault();
-            if (state === 'PLAYING') pauseGame();
-            else if (state === 'PAUSED') resumeGame();
-            return;
-        }
-
-        if (key === 'm') {
-            e.preventDefault();
-            Audio.setMuted(!isMuted);
-            return;
-        }
-
-        if (key === 'w' || key === 'arrowup' || key === ' ') {
-            e.preventDefault();
-            if (state === 'PLAYING') {
-                keysPressed.up = true;
-                updateInputState();
-            } else if (state === 'MENU' && key === ' ' && canRestart) {
-                resetGame();
+        function stopEngineAudio() {
+            // Absolute shutdown strategy to completely clear background ambient sounds on crash 
+            if (engineOsc) {
+                try { engineOsc.stop(); engineOsc.disconnect(); } catch(e){}
+                engineOsc = null;
             }
-            return;
-        }
-
-        if (key === 's' || key === 'arrowdown') {
-            e.preventDefault();
-            if (state === 'PLAYING') {
-                keysPressed.down = true;
+            if (engineMod) {
+                try { engineMod.stop(); engineMod.disconnect(); } catch(e){}
+                engineMod = null;
             }
-            return;
-        }
-    }
-
-    function handleKeyUp(e) {
-        const key = e.key.toLowerCase();
-
-        if (key === 'w' || key === 'arrowup' || key === ' ') {
-            keysPressed.up = false;
-            updateInputState();
-            return;
+            if (engineGain) {
+                try { engineGain.disconnect(); } catch(e){}
+                engineGain = null;
+            }
         }
 
-        if (key === 's' || key === 'arrowdown') {
-            keysPressed.down = false;
-            return;
-        }
-    }
+        // Event Input Handlers Architecture
+        const activeInputKeys = ['Space', 'ArrowUp', 'KeyW'];
 
-    // Event listeners
-    container.addEventListener('touchstart', handlePointerDown, { passive: false });
-    window.addEventListener('touchend', handlePointerUp);
-    window.addEventListener('touchcancel', handlePointerUp); // Handle interrupted touches
-    window.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('mouseup', handlePointerUp);
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    
-    // Prevent context menu on long press (mobile)
-    container.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        return false;
-    });
-
-    // ===== GAME FUNCTIONS =====
-    function pauseGame() {
-        if (state !== 'PLAYING') return;
-        state = 'PAUSED';
-        inputActive = false;
-        Audio.throttle(false);
-        
-        title.innerText = "PAUSED";
-        title.style.color = "var(--dust)";
-        desc.innerHTML = "PRESS P OR ENTER TO RESUME<br>M TO TOGGLE SOUND";
-        btnStart.innerText = "RESUME";
-        menu.classList.remove('hidden');
-        elSys.innerText = "PAUSED";
-    }
-
-    function resumeGame() {
-        if (state !== 'PAUSED') return;
-        state = 'PLAYING';
-        menu.classList.add('hidden');
-        elSys.innerText = "ONLINE";
-        elSys.style.color = "var(--primary)";
-        lastFrameTime = performance.now();
-    }
-
-    function resetGame() {
-        if (!canRestart) return;
-
-        helicopter.y = height / 2;
-        helicopter.velocityY = 0;
-        helicopter.angle = 0;
-        helicopter.x = width * 0.25;
-        helicopter.rotorAngle = 0;
-        
-        distance = 0;
-        scrollSpeed = CONFIG.speedStart;
-        state = 'PLAYING';
-        shake.intensity = 0;
-        particles = [];
-        birds = [];
-        dragons = [];  // Reset dragons
-        difficultyLevel = 1;  // Reset difficulty
-        
-        // Generate terrain
-        terrain = [];
-        let topHeight = 55;
-        let bottomHeight = 55;
-        const totalSegments = Math.ceil(width / CONFIG.segmentWidth) + CONFIG.terrainBuffer;
-        
-        for (let i = 0; i < totalSegments; i++) {
-            if (i > 10) {
-                topHeight += (Math.random() * 18 - 9);
-                bottomHeight += (Math.random() * 18 - 9);
-                
-                topHeight = Math.max(25, Math.min(height / 3, topHeight));
-                bottomHeight = Math.max(25, Math.min(height / 3, bottomHeight));
-                
-                if (height - topHeight - bottomHeight < CONFIG.minGap) {
-                    topHeight -= 12;
-                    bottomHeight -= 12;
+        window.addEventListener('keydown', (e) => {
+            if (activeInputKeys.includes(e.code)) {
+                e.preventDefault(); // Prevents standard display screen shifting or scrolling 
+                if (gameState === 'PLAYING') {
+                    isThrusting = true;
                 }
             }
-            terrain.push({ top: topHeight, bottom: bottomHeight });
-        }
-        
-        initStars();
-        
-        // Reset inputs
-        inputActive = false;
-        pointerDown = false;
-        keysPressed.up = false;
-        keysPressed.down = false;
-        touchZone.classList.remove('active');
-
-        elSys.innerText = "ONLINE";
-        elSys.style.color = "var(--primary)";
-        menu.classList.add('hidden');
-
-        Audio.start();
-        lastFrameTime = performance.now();
-        
-        // Debug tracking
-        GameDebug.trackGameEvent('GAME_START', {
-            viewport: { width, height },
-            aspectRatio: (width / height).toFixed(2)
         });
-    }
 
-    function spawnBird() {
-        const y = Math.random() * (height - 180) + 90;
-        birds.push({
-            x: width + 40,
-            y: y,
-            vx: -(scrollSpeed + 80 + Math.random() * 60),
-            flap: Math.random() * 10,
-            flapSpeed: 0.12 + Math.random() * 0.08
+        window.addEventListener('keyup', (e) => {
+            if (activeInputKeys.includes(e.code)) {
+                isThrusting = false;
+            }
         });
-    }
 
-    // Dragon spawning - larger, more dangerous obstacle
-    function spawnDragon() {
-        const y = Math.random() * (height - 200) + 100;
-        dragons.push({
-            x: width + 60,
-            y: y,
-            vx: -(scrollSpeed + 40 + Math.random() * 40),  // Slightly slower than birds
-            vy: (Math.random() - 0.5) * 60,  // Slight vertical movement
-            wingPhase: Math.random() * Math.PI * 2,
-            wingSpeed: 0.08 + Math.random() * 0.04,
-            breathPhase: Math.random() * Math.PI * 2,
-            size: 1.2 + Math.random() * 0.4  // Size variation
-        });
-    }
+        // Pointerdown events safely unify Mouse clicking configurations and Mobile Touch tracking steps
+        const handleThrustStart = (e) => {
+            e.preventDefault();
+            if (gameState === 'PLAYING') {
+                isThrusting = true;
+            }
+        };
 
-    function update(dt) {
-        // Cap delta time
-        dt = Math.min(dt, CONFIG.maxDeltaTime);
-        
-        distance += scrollSpeed * dt;
-        scrollSpeed += CONFIG.speedInc * dt;
-        
-        // Update difficulty level based on distance (using display distance units)
-        const displayDistance = distance / DIFFICULTY.distanceScale;
-        const newLevel = Math.min(
-            Math.floor(displayDistance / DIFFICULTY.levelUpDistance) + 1,
-            DIFFICULTY.maxLevel
-        );
-        if (newLevel > difficultyLevel) {
-            difficultyLevel = newLevel;
-            // Increase scroll speed with each level
-            scrollSpeed += DIFFICULTY.speedIncreasePerLevel * scrollSpeed;
-            GameDebug.log('GAME', 'Level up!', { level: difficultyLevel, speed: scrollSpeed });
-        }
+        const handleThrustEnd = (e) => {
+            e.preventDefault();
+            isThrusting = false;
+        };
 
-        // Physics
-        if (inputActive) {
-            helicopter.velocityY -= CONFIG.thrust * dt;
-            helicopter.angle = -0.22;
+        touchThrust.addEventListener('pointerdown', handleThrustStart);
+        touchThrust.addEventListener('pointerup', handleThrustEnd);
+        touchThrust.addEventListener('pointercancel', handleThrustEnd);
+
+        // Also permit pressing canvas direct zone to fly forward if buttons missed
+        canvas.addEventListener('pointerdown', handleThrustStart);
+        canvas.addEventListener('pointerup', handleThrustEnd);
+
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+
+        // Core Game Initialization Processes
+        function startGame() {
+            gameState = 'PLAYING';
+            score = 0;
+            chopper.y = 200;
+            chopper.velocity = 0;
+            isThrusting = false;
+            obstacles = [];
+            obstacleConfig.spawnTimer = 0;
             
-            // Spawn particles
-            if (Math.random() > 0.4) {
-                particles.push({
-                    x: helicopter.x - 18,
-                    y: helicopter.y + 4,
-                    vx: -scrollSpeed - 80,
-                    vy: (Math.random() - 0.5) * 70,
-                    life: 1
+            menuOverlay.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+            
+            lastTime = performance.now();
+            
+            stopEngineAudio();
+            startEngineAudio();
+            
+            requestAnimationFrame(runGameLoop);
+        }
+
+        function handleCrashState() {
+            gameState = 'GAMEOVER';
+            stopEngineAudio(); // Instantly kills any engine buzz tracking logic
+            
+            if (score > highScore) {
+                highScore = score;
+            }
+            
+            scoreSummary.textContent = `Score: ${score} | Best: ${highScore}`;
+            gameOverOverlay.classList.remove('hidden');
+        }
+
+        // Logic & State Processing (Strict Delta-Time Controlled Execution Loop)
+        function updateGameObjects(dt) {
+            if (gameState !== 'PLAYING') return;
+
+            // Apply thrust parameters or gravity downward acceleration changes
+            if (isThrusting) {
+                chopper.velocity += chopper.thrust * dt;
+            } else {
+                chopper.velocity += chopper.gravity * dt;
+            }
+
+            // Cap downward velocities safely
+            if (chopper.velocity > chopper.maxFallSpeed) {
+                chopper.velocity = chopper.maxFallSpeed;
+            }
+
+            chopper.y += chopper.velocity * dt;
+            chopper.rotorAngle += (isThrusting ? 35 : 20) * dt; // Rotate blade elements smoothly
+
+            // Dynamic Audio Node processing changes
+            updateEngineAudio(isThrusting);
+
+            // Ceiling and Ground Collision Boundaries tracking routines
+            if (chopper.y < 0 || chopper.y + chopper.height > canvas.height) {
+                handleCrashState();
+                return;
+            }
+
+            // Generate Obstacle Pillars
+            obstacleConfig.spawnTimer += dt;
+            if (obstacleConfig.spawnTimer >= obstacleConfig.spawnInterval) {
+                obstacleConfig.spawnTimer = 0;
+                
+                // Randomize heights safely
+                const minHeight = 40;
+                const maxHeight = canvas.height - obstacleConfig.gap - minHeight;
+                const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+                
+                obstacles.push({
+                    x: canvas.width,
+                    topHeight: topHeight,
+                    bottomY: topHeight + obstacleConfig.gap,
+                    passed: false
                 });
             }
-        } else if (keysPressed.down) {
-            helicopter.velocityY += CONFIG.gravity * 1.8 * dt;
-            helicopter.angle = 0.28;
-        } else {
-            helicopter.velocityY += CONFIG.gravity * dt;
-            helicopter.angle = 0.12;
-        }
 
-        // Velocity limits
-        helicopter.velocityY = Math.max(-CONFIG.maxRiseVel, Math.min(CONFIG.terminalVel, helicopter.velocityY));
-        helicopter.y += helicopter.velocityY * dt;
-        
-        // Rotor animation
-        helicopter.rotorAngle += dt * 25;
+            // Move Obstacles and Detect Core Boundaries Collisions
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.x -= obstacleConfig.speed * dt;
 
-        // Update stars (parallax)
-        updateStars(dt);
+                // Strip old obstacles safely
+                if (obs.x + obstacleConfig.width < 0) {
+                    obstacles.splice(i, 1);
+                    continue;
+                }
 
-        // Terrain generation
-        while (terrain.length < Math.ceil(width / CONFIG.segmentWidth) + CONFIG.terrainBuffer) {
-            const last = terrain[terrain.length - 1];
-            let newTop = last.top + (Math.random() * 22 - 11);
-            let newBottom = last.bottom + (Math.random() * 22 - 11);
-            
-            newTop = Math.max(25, Math.min(height / 3, newTop));
-            newBottom = Math.max(25, Math.min(height / 3, newBottom));
-            
-            if (height - newTop - newBottom < CONFIG.minGap) {
-                newTop -= 10;
-                newBottom -= 10;
-            }
-            
-            terrain.push({ top: newTop, bottom: newBottom });
-        }
-        
-        if ((distance % CONFIG.segmentWidth) < scrollSpeed * dt) {
-            terrain.shift();
-        }
+                // Check Scoring Points pass lines
+                if (!obs.passed && obs.x + obstacleConfig.width / 2 < chopper.x) {
+                    obs.passed = true;
+                    score++;
+                }
 
-        // Birds - spawn rate increases with difficulty
-        const birdSpawnRate = (DIFFICULTY.birdSpawnBase + DIFFICULTY.birdSpawnPerLevel * difficultyLevel + scrollSpeed * 0.000015) * dt * 60;
-        if (Math.random() < birdSpawnRate) {
-            spawnBird();
-        }
-        
-        birds.forEach(bird => {
-            bird.x += bird.vx * dt;
-            bird.flap += bird.flapSpeed;
-            
-            // Collision
-            if (Math.abs(helicopter.x - bird.x) < 22 && Math.abs(helicopter.y - bird.y) < 18) {
-                gameOver('bird');
-            }
-        });
-        birds = birds.filter(b => b.x > -50);
-
-        // Dragons - spawn after level 2, rate increases with difficulty
-        if (difficultyLevel >= 2) {
-            const dragonSpawnRate = (DIFFICULTY.dragonSpawnBase + DIFFICULTY.dragonSpawnPerLevel * (difficultyLevel - 1)) * dt * 60;
-            if (Math.random() < dragonSpawnRate) {
-                spawnDragon();
-            }
-        }
-        
-        dragons.forEach(dragon => {
-            dragon.x += dragon.vx * dt;
-            dragon.y += dragon.vy * dt;
-            dragon.wingPhase += dragon.wingSpeed;
-            dragon.breathPhase += 0.05;
-            
-            // Bounce off top/bottom bounds
-            if (dragon.y < 80 || dragon.y > height - 80) {
-                dragon.vy *= -1;
-            }
-            
-            // Collision (larger hitbox for dragons)
-            const hitboxSize = 28 * dragon.size;
-            if (Math.abs(helicopter.x - dragon.x) < hitboxSize && Math.abs(helicopter.y - dragon.y) < hitboxSize) {
-                gameOver('dragon');
-            }
-        });
-        dragons = dragons.filter(d => d.x > -80);
-
-        // Terrain collision
-        const heliIndex = Math.floor(helicopter.x / CONFIG.segmentWidth);
-        if (terrain[heliIndex]) {
-            const ceiling = terrain[heliIndex].top;
-            const floor = height - terrain[heliIndex].bottom;
-            
-            if (helicopter.y - helicopter.radius < ceiling || helicopter.y + helicopter.radius > floor) {
-                gameOver('terrain');
-            }
-        }
-        
-        if (helicopter.y < 0 || helicopter.y > height) {
-            gameOver('terrain');
-        }
-
-        // Update particles
-        particles.forEach(p => {
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
-            p.life -= 1.8 * dt;
-        });
-        particles = particles.filter(p => p.life > 0);
-
-        // Update shake
-        if (shake.intensity > 0) {
-            shake.x = (Math.random() - 0.5) * shake.intensity;
-            shake.y = (Math.random() - 0.5) * shake.intensity;
-            shake.intensity *= 0.92;
-        }
-
-        // Update HUD
-        elAlt.innerText = String(Math.floor(height - helicopter.y)).padStart(4, '0');
-        elDist.innerText = String(Math.floor(distance / 10)).padStart(4, '0');
-    }
-
-    function gameOver(cause) {
-        state = 'CRASHED';
-        shake.intensity = cause === 'dragon' ? 30 : 22;  // Dragons cause bigger shake
-        inputActive = false;
-        pointerDown = false;
-        keysPressed.up = false;
-        keysPressed.down = false;
-        touchZone.classList.remove('active');
-
-        // Debug tracking
-        const finalDistance = Math.floor(distance / 10);
-        
-        // Map cause to display text
-        const causeText = {
-            'bird': 'BIRD STRIKE',
-            'dragon': 'DRAGON ATTACK',
-            'terrain': 'TERRAIN IMPACT'
-        };
-        const causeDisplay = causeText[cause] || 'UNKNOWN';
-        
-        GameDebug.trackGameEvent('CRASH', {
-            cause: causeDisplay,
-            distance: finalDistance,
-            level: difficultyLevel,
-            avgFps: GameDebug.metrics.avgFps,
-            position: { x: helicopter.x, y: helicopter.y }
-        });
-        GameDebug.trackGameEvent('DISTANCE', { distance: finalDistance });
-
-        // CRITICAL: Stop sound immediately on crash
-        Audio.fadeOut();
-        Audio.playExplosion();
-        if (cause === 'bird' || cause === 'dragon') Audio.playBirdHit();
-
-        elSys.innerText = causeDisplay;
-        elSys.style.color = "var(--alert)";
-
-        setTimeout(() => {
-            // Ensure sound is completely stopped
-            Audio.stop();
-            
-            title.innerText = "MISSION FAILED";
-            title.style.color = "var(--alert)";
-            desc.innerHTML = `DISTANCE: ${finalDistance}<br>LEVEL: ${difficultyLevel}<br>CAUSE: ${causeDisplay}<br><br>TAP OR PRESS ENTER TO RESTART`;
-            btnStart.innerText = "REBOOT SYSTEM";
-            menu.classList.remove('hidden');
-            
-            canRestart = false;
-            setTimeout(() => { canRestart = true; }, 400);
-            
-            state = 'MENU';
-            initDust();
-        }, 550);
-    }
-
-    // ===== RENDERING =====
-    function draw() {
-        // Clear
-        ctx.fillStyle = '#050505';
-        ctx.fillRect(0, 0, width, height);
-
-        if (state === 'MENU' || state === 'PAUSED') {
-            drawStars();
-            drawDust();
-            
-            if (state === 'PAUSED') {
-                ctx.globalAlpha = 0.25;
-                drawGameWorld();
-                ctx.globalAlpha = 1;
-            }
-            return;
-        }
-
-        drawGameWorld();
-    }
-
-    function drawGameWorld() {
-        ctx.save();
-        ctx.translate(shake.x, shake.y);
-
-        // Stars (background)
-        drawStars();
-
-        // Terrain with 3D depth effect
-        const offset = -(distance % CONFIG.segmentWidth);
-        
-        // Draw terrain glow/shadow first
-        ctx.strokeStyle = 'rgba(57, 255, 20, 0.3)';
-        ctx.lineWidth = 5;
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = '#39ff14';
-        
-        // Top terrain
-        ctx.beginPath();
-        ctx.moveTo(offset, terrain[0]?.top || 0);
-        terrain.forEach((t, i) => {
-            ctx.lineTo(offset + i * CONFIG.segmentWidth, t.top);
-        });
-        ctx.stroke();
-
-        // Bottom terrain
-        ctx.beginPath();
-        ctx.moveTo(offset, height - (terrain[0]?.bottom || 0));
-        terrain.forEach((t, i) => {
-            ctx.lineTo(offset + i * CONFIG.segmentWidth, height - t.bottom);
-        });
-        ctx.stroke();
-
-        // Main terrain lines
-        ctx.strokeStyle = '#39ff14';
-        ctx.lineWidth = 2;
-        ctx.shadowBlur = 6;
-
-        ctx.beginPath();
-        ctx.moveTo(offset, terrain[0]?.top || 0);
-        terrain.forEach((t, i) => {
-            ctx.lineTo(offset + i * CONFIG.segmentWidth, t.top);
-        });
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(offset, height - (terrain[0]?.bottom || 0));
-        terrain.forEach((t, i) => {
-            ctx.lineTo(offset + i * CONFIG.segmentWidth, height - t.bottom);
-        });
-        ctx.stroke();
-
-        // Birds
-        ctx.strokeStyle = '#ffaa55';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = '#ff8844';
-        ctx.shadowBlur = 6;
-        birds.forEach(b => {
-            const wingY = Math.sin(b.flap) * 9;
-            ctx.beginPath();
-            ctx.moveTo(b.x, b.y);
-            ctx.lineTo(b.x + 9, b.y + wingY);
-            ctx.lineTo(b.x + 18, b.y);
-            ctx.stroke();
-        });
-
-        // Dragons - vector style matching site aesthetics
-        dragons.forEach(d => {
-            const wingY = Math.sin(d.wingPhase) * 12 * d.size;
-            const breathGlow = Math.sin(d.breathPhase) * 0.3 + 0.7;
-            const s = d.size;
-            
-            ctx.save();
-            ctx.translate(d.x, d.y);
-            
-            // Dragon body glow
-            ctx.shadowColor = '#ff3333';
-            ctx.shadowBlur = 15 * s;
-            ctx.strokeStyle = `rgba(255, 51, 51, ${breathGlow})`;
-            ctx.lineWidth = 3 * s;
-            
-            // Body - serpentine shape
-            ctx.beginPath();
-            ctx.moveTo(25 * s, 0);
-            ctx.quadraticCurveTo(15 * s, -8 * s, 0, 0);
-            ctx.quadraticCurveTo(-15 * s, 8 * s, -30 * s, 0);
-            ctx.stroke();
-            
-            // Head
-            ctx.beginPath();
-            ctx.moveTo(25 * s, 0);
-            ctx.lineTo(35 * s, -5 * s);
-            ctx.lineTo(40 * s, 0);
-            ctx.lineTo(35 * s, 5 * s);
-            ctx.lineTo(25 * s, 0);
-            ctx.stroke();
-            
-            // Eye (glowing)
-            ctx.fillStyle = '#39ff14';
-            ctx.shadowColor = '#39ff14';
-            ctx.beginPath();
-            ctx.arc(32 * s, -1 * s, 2 * s, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Wings
-            ctx.strokeStyle = `rgba(255, 136, 68, ${breathGlow})`;
-            ctx.shadowColor = '#ff8844';
-            ctx.lineWidth = 2 * s;
-            
-            // Upper wing
-            ctx.beginPath();
-            ctx.moveTo(5 * s, -3 * s);
-            ctx.lineTo(0, -20 * s + wingY);
-            ctx.lineTo(-15 * s, -10 * s + wingY * 0.5);
-            ctx.stroke();
-            
-            // Lower wing
-            ctx.beginPath();
-            ctx.moveTo(5 * s, 3 * s);
-            ctx.lineTo(0, 20 * s - wingY);
-            ctx.lineTo(-15 * s, 10 * s - wingY * 0.5);
-            ctx.stroke();
-            
-            // Tail spikes
-            ctx.strokeStyle = '#ff3333';
-            ctx.beginPath();
-            ctx.moveTo(-30 * s, 0);
-            ctx.lineTo(-35 * s, -8 * s);
-            ctx.moveTo(-30 * s, 0);
-            ctx.lineTo(-40 * s, 0);
-            ctx.moveTo(-30 * s, 0);
-            ctx.lineTo(-35 * s, 8 * s);
-            ctx.stroke();
-            
-            // Fire breath (when dragon is past fire threshold on screen and breath cycle is active)
-            if (d.x < width * DIFFICULTY.dragonFireThreshold && Math.sin(d.breathPhase * 3) > DIFFICULTY.dragonFireFrequency) {
-                // Pre-calculate flame offsets for this frame (reduces random calls)
-                const flameOffset1 = Math.sin(d.breathPhase * 7) * 10;
-                const flameOffset2 = Math.cos(d.breathPhase * 5) * 15;
-                const flameOffset3 = Math.sin(d.breathPhase * 9) * 10;
-                
-                ctx.fillStyle = `rgba(255, 136, 68, ${breathGlow * 0.6})`;
-                ctx.shadowColor = '#ff8844';
-                ctx.shadowBlur = 20;
-                ctx.beginPath();
-                ctx.moveTo(40 * s, 0);
-                ctx.lineTo(55 * s + flameOffset1, -5 * s);
-                ctx.lineTo(60 * s + flameOffset2, 0);
-                ctx.lineTo(55 * s + flameOffset3, 5 * s);
-                ctx.closePath();
-                ctx.fill();
-            }
-            
-            ctx.restore();
-        });
-
-        // Particles
-        ctx.shadowBlur = 4;
-        ctx.shadowColor = '#39ff14';
-        particles.forEach(p => {
-            ctx.fillStyle = `rgba(57, 255, 20, ${p.life})`;
-            ctx.fillRect(p.x, p.y, 3, 3);
-        });
-
-        // Draw helicopter (3D-style)
-        ctx.save();
-        ctx.translate(helicopter.x, helicopter.y);
-        ctx.rotate(helicopter.angle);
-        
-        ctx.strokeStyle = '#39ff14';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#39ff14';
-        ctx.lineWidth = 2;
-        
-        // Body (3D oval)
-        ctx.beginPath();
-        ctx.ellipse(0, 0, helicopter.radius + 4, helicopter.radius, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        
-        // Inner cockpit
-        ctx.beginPath();
-        ctx.ellipse(4, 0, 8, 6, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        
-        // Tail boom
-        ctx.beginPath();
-        ctx.moveTo(-10, 0);
-        ctx.lineTo(-32, 0);
-        ctx.moveTo(-32, -5);
-        ctx.lineTo(-32, 5);
-        ctx.stroke();
-
-        // Rotor (animated, 3D perspective)
-        const rotorSpan = 38 * Math.cos(helicopter.rotorAngle);
-        ctx.beginPath();
-        ctx.moveTo(-rotorSpan, -13);
-        ctx.lineTo(rotorSpan, -13);
-        ctx.moveTo(0, -13);
-        ctx.lineTo(0, -10);
-        ctx.stroke();
-
-        // Skids (3D depth)
-        ctx.strokeStyle = 'rgba(57, 255, 20, 0.7)';
-        ctx.beginPath();
-        ctx.moveTo(-12, 12);
-        ctx.lineTo(10, 12);
-        ctx.moveTo(-12, 14);
-        ctx.lineTo(10, 14);
-        ctx.stroke();
-
-        // Thrust flame
-        if (inputActive) {
-            ctx.fillStyle = '#fff';
-            ctx.shadowColor = '#fff';
-            ctx.beginPath();
-            ctx.moveTo(-3, 8);
-            ctx.lineTo(3, 8);
-            ctx.lineTo(0, 18 + Math.random() * 8);
-            ctx.fill();
-        }
-
-        ctx.restore();
-        ctx.restore();
-    }
-
-    // ===== MAIN LOOP (Optimized for all refresh rates: 60Hz, 90Hz, 120Hz, 144Hz) =====
-    let lastRenderTime = 0;
-    let detectedRefreshRate = 60;  // Default assumption
-    let refreshRateFrames = [];
-    
-    function gameLoop(currentTime) {
-        // FPS calculation - accurately shows actual frame rate
-        frameCount++;
-        if (currentTime - lastFpsUpdate >= 1000) {
-            currentFps = frameCount;
-            
-            // Detect display refresh rate from actual FPS
-            if (currentFps > 55) {
-                if (currentFps >= 115) {
-                    detectedRefreshRate = 120;
-                } else if (currentFps >= 85) {
-                    detectedRefreshRate = 90;
-                } else {
-                    detectedRefreshRate = 60;
+                // Collision Box check checks
+                if (
+                    chopper.x + 6 < obs.x + obstacleConfig.width &&
+                    chopper.x + chopper.width - 6 > obs.x &&
+                    (chopper.y + 4 < obs.topHeight || chopper.y + chopper.height - 4 > obs.bottomY)
+                ) {
+                    handleCrashState();
+                    return;
                 }
             }
-            
-            elFps.innerText = currentFps;
-            GameDebug.trackFps(currentFps);
-            GameDebug.log('PERFORMANCE', 'Frame rate update', { 
-                fps: currentFps, 
-                detectedRefreshRate 
+        }
+
+        // Canvas Rendering Architecture Subsystem
+        function renderGameGraphics() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Background Subtle Cyber-Industrial Grid Lines rendering steps
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+            ctx.lineWidth = 1;
+            const gridSize = 40;
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            // Obstacle Pillars drawing routines
+            obstacles.forEach(obs => {
+                ctx.fillStyle = 'linear-gradient(90deg, #1e293b, #0f172a)';
+                
+                // Neon-accented styling logic configurations
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
+
+                // Draw Top Pillar Frame
+                ctx.fillRect(obs.x, 0, obstacleConfig.width, obs.topHeight);
+                ctx.strokeRect(obs.x, -2, obstacleConfig.width, obs.topHeight + 2);
+
+                // Draw Bottom Pillar Frame
+                ctx.fillRect(obs.x, obs.bottomY, obstacleConfig.width, canvas.height - obs.bottomY);
+                ctx.strokeRect(obs.x, obs.bottomY, obstacleConfig.width, canvas.height - obs.bottomY + 2);
             });
-            frameCount = 0;
-            lastFpsUpdate = currentTime;
-        }
 
-        // Delta time calculation with smoothing for high refresh rates
-        if (!lastFrameTime) lastFrameTime = currentTime;
-        let deltaTime = (currentTime - lastFrameTime) / 1000;
-        lastFrameTime = currentTime;
-        
-        // Cap delta time for consistent physics (prevents jumps on tab switch)
-        deltaTime = Math.min(deltaTime, CONFIG.maxDeltaTime);
-        
-        // Ensure minimum delta for very high refresh rates (prevents micro-stuttering)
-        // This ensures smooth gameplay on 120Hz+ displays
-        if (deltaTime < 0.001) deltaTime = 0.001;
+            // Draw Chopper Module Entity Elements
+            ctx.save();
+            ctx.translate(chopper.x, chopper.y);
 
-        // Update game state
-        if (state === 'PLAYING') {
-            update(deltaTime);
-        } else if (state === 'MENU' || state === 'PAUSED') {
-            updateDust(deltaTime);
-            updateStars(deltaTime * 0.3);
-        }
+            // Helicopter Fuselage Base Frame
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(12, 6, 28, 14); 
 
-        // Render
-        draw();
+            // Tail Boom line frame elements
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.moveTo(14, 12);
+            ctx.lineTo(0, 10);
+            ctx.stroke();
 
-        // Use requestAnimationFrame for native refresh rate support
-        requestAnimationFrame(gameLoop);
-    }
+            // Small Rear Tail Rotor construct
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(-2, 4, 4, 12);
 
-    // ===== INITIALIZATION =====
-    function init() {
-        resize();
-        initDust();
-        initStars();
-        
-        // Button handler function
-        function handleButtonAction(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            if (!canRestart && state === 'MENU') return;
-            
-            if (state === 'PAUSED') {
-                resumeGame();
-            } else {
-                resetGame();
+            // Front Cockpit Canopy windshield accent highlights
+            ctx.fillStyle = '#00f0ff';
+            ctx.fillRect(32, 6, 8, 8);
+
+            // Landing Gear Skids sets
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#475569';
+            ctx.beginPath();
+            ctx.moveTo(18, 20); ctx.lineTo(18, 23);
+            ctx.moveTo(32, 20); ctx.lineTo(32, 23);
+            ctx.moveTo(12, 23); ctx.lineTo(36, 23);
+            ctx.stroke();
+
+            // Top Rotor Support bracket post
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#475569';
+            ctx.beginPath(); ctx.moveTo(26, 6); ctx.lineTo(26, 2); ctx.stroke();
+
+            // Main Spinning Blade Rotor tracking components 
+            ctx.translate(26, 2);
+            let bladeWidth = Math.sin(chopper.rotorAngle) * 32;
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#f8fafc';
+            ctx.beginPath();
+            ctx.moveTo(-bladeWidth, 0);
+            ctx.lineTo(bladeWidth, 0);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Live HUD Score overlay printing steps
+            if (gameState === 'PLAYING') {
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '700 22px system-ui, sans-serif';
+                ctx.fillText(`SCORE: ${score}`, 24, 38);
             }
         }
-        
-        // Add both click and touch handlers for robust mobile support
-        btnStart.addEventListener('click', handleButtonAction);
-        btnStart.addEventListener('touchend', handleButtonAction, { passive: false });
-        
-        // Prevent touchstart from triggering other handlers
-        btnStart.addEventListener('touchstart', (e) => {
-            e.stopPropagation();
-        }, { passive: true });
 
-        // Debug key handler (press D for debug report)
-        window.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'd' && e.shiftKey) {
-                e.preventDefault();
-                const report = GameDebug.showDebugConsole();
-                // Also show brief on-screen notification
-                console.log('📋 Debug report copied to console. Press F12 to view.');
-            }
-        });
+        // High Frame-Rate Safe Unified Animation Execution Loop
+        function runGameLoop(timestamp) {
+            if (gameState !== 'PLAYING') return;
 
-        GameDebug.log('SYSTEM', 'Game initialized', {
-            viewport: { width: window.innerWidth, height: window.innerHeight }
-        });
+            // Calculate precise frame execution interval steps
+            let dt = (timestamp - lastTime) / 1000;
+            
+            // Mitigate game breaks or jumps if backgrounding tabs freeze cycles
+            if (dt > 0.1) dt = 0.1; 
+            lastTime = timestamp;
 
-        requestAnimationFrame(gameLoop);
-    }
+            updateGameObjects(dt);
+            renderGameGraphics();
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-})();
-</script>
+            requestAnimationFrame(runGameLoop);
+        }
+
+        // Initial setup render execution pass 
+        renderGameGraphics();
+    </script>
 </body>
 </html>
